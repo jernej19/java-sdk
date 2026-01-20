@@ -119,7 +119,7 @@ public class Example5_AllMessageTypes {
         fixturesCount++;
         FixtureMessage msg = mapper.treeToValue(json, FixtureMessage.class);
 
-        System.out.println("\n🎮 FIXTURE - " + msg.getAction().toUpperCase());
+        System.out.println("\n🎮 FIXTURE - " + msg.getAction().toString().toUpperCase());
         System.out.println("   Match ID: " + msg.getMatchId());
         System.out.println("   Event: " + msg.getEventType() + " #" + msg.getEventId());
         System.out.println("   Game: " + msg.getVideogameSlug());
