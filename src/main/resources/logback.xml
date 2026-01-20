@@ -1,0 +1,99 @@
+<configuration>
+  <!-- Allows customization of MDC tags printed with each log line. -->
+  <property name="sdkMdcPattern" value="${sdk.mdc.pattern:-[session=%X{session}] [customerId=%X{customerId}] [feed=%X{feed}] [messageType=%X{messageType}] [operation=%X{operation}] [routingKey=%X{routingKey}]}"/>
+
+  <!-- ===== DEBUG file (debug only) ===== -->
+  <appender name="FILE-DEBUG" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/sdk-debug.log</file>
+    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+      <level>DEBUG</level>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/sdk-debug.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+      <maxHistory>30</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level ${sdkMdcPattern} %logger{36} – %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Asynchronous wrapper to avoid blocking feed threads -->
+  <appender name="ASYNC-FILE-DEBUG" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="FILE-DEBUG"/>
+  </appender>
+
+  <!-- ===== INFO file (info, warn, error) ===== -->
+  <appender name="FILE-INFO" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/sdk-info.log</file>
+    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+      <level>INFO</level>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/sdk-info.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+      <maxHistory>30</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level ${sdkMdcPattern} %logger{36} – %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Asynchronous wrapper to avoid blocking feed threads -->
+  <appender name="ASYNC-FILE-INFO" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="FILE-INFO"/>
+  </appender>
+
+  <!-- ===== WARN file (warn, error) ===== -->
+  <appender name="FILE-WARN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/sdk-warn.log</file>
+    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+      <level>WARN</level>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/sdk-warn.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+      <maxHistory>30</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level ${sdkMdcPattern} %logger{36} – %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Asynchronous wrapper to avoid blocking feed threads -->
+  <appender name="ASYNC-FILE-WARN" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="FILE-WARN"/>
+  </appender>
+
+  <!-- Optionally still log to console at INFO+ -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+      <level>INFO</level>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level ${sdkMdcPattern} %logger{36} – %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Asynchronous wrapper to avoid blocking feed threads -->
+  <appender name="ASYNC-CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+    <appender-ref ref="CONSOLE"/>
+  </appender>
+
+  <!-- Ensure our SDK logs at DEBUG so they flow into sdk-debug.log -->
+  <logger name="com.pandascore.sdk" level="DEBUG"/>
+
+  <!-- Root: emit INFO+ to console, and DEBUG+/INFO+/WARN+ to their respective files -->
+  <root level="INFO">
+    <appender-ref ref="ASYNC-CONSOLE"/>
+    <appender-ref ref="ASYNC-FILE-DEBUG"/>
+    <appender-ref ref="ASYNC-FILE-INFO"/>
+    <appender-ref ref="ASYNC-FILE-WARN"/>
+  </root>
+
+</configuration>
