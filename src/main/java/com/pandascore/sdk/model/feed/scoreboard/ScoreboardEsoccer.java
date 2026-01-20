@@ -26,8 +26,12 @@ public class ScoreboardEsoccer {
         private int position;
         /** Game status. */
         private String status;
+        /** Match timer object (counts UP: 0-600 for 2 halves). */
+        private EsoccerTimerObject timer;
+        /** Current half (1 = first half, 2 = second half). */
+        private Integer currentHalf;
         /** Player scores for the game. */
-        private List<EsoccerPlayer> scores;
+        private List<EsoccerPlayer> players;
         /** Score breakdown by halves. */
         private List<EsoccerHalf> halves;
     }

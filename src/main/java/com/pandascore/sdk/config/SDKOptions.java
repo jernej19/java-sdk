@@ -73,6 +73,16 @@ public class SDKOptions {
     private final boolean fractionalOdds = false;
 
     /**
+     * Whether to automatically trigger recovery (recoverMarkets + fetchMatchesRange)
+     * when reconnection occurs. Default: true.
+     * <p>
+     * If false, SDK emits reconnection event but does NOT call recovery APIs.
+     * User must manually call MatchesClient methods if they want recovery.
+     */
+    @Builder.Default
+    private final boolean recoverOnReconnect = true;
+
+    /**
      * Represents a single RabbitMQ queue + routing-key pair.
      */
     @Data
