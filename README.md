@@ -1,161 +1,435 @@
 # PandaScore Java SDK
 
-## Overview
+Modern Java SDK for consuming live esports odds and match data from PandaScore's real-time feed.
 
-The PandaScore Java SDK enables customers to consume live esports odds over
-RabbitMQ and to recover missed data through HTTP endpoints. It ships with typed
-data models, an automatic reconnection handler and helper utilities so that a
-customer can focus on processing events.
+[![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
+[![Build Tool](https://img.shields.io/badge/Build-Gradle-green)](https://gradle.org/)
 
-## Features
+## 🎯 Overview
 
-- **RabbitMQ feed integration** – connect to the PandaScore AMQPS feed and
-  receive structured JSON events.
-- **Automatic reconnection & recovery** – `EventHandler` monitors heartbeats and
-  triggers `MatchesClient` recovery calls after a disconnection.
-- **Typed DTOs** – the `model` package contains Java classes for every feed
-  payload.
-- **HTTP clients** – `MatchesClient` exposes typed methods for recovery of
-  markets and matches.
-- **Extensive logging** – MDC tags and asynchronous appenders capture detailed
-  context for each operation.
+The PandaScore Java SDK provides a complete solution for integrating esports betting data into your applications. It combines real-time streaming via RabbitMQ with REST API endpoints for data recovery, featuring:
 
-## Requirements
+- **Real-time odds updates** via AMQPS feed
+- **Automatic reconnection** with smart recovery
+- **Comprehensive data models** for 7+ esports titles
+- **HTTP API** for on-demand queries
+- **Production-ready** with extensive logging and error handling
 
-- Java **17** or higher.
-- Use the provided Gradle wrapper (`./gradlew`) for all commands.
-- Ensure `JAVA_HOME` points to a JDK if the wrapper cannot locate `java` on your
-  `PATH`.
+## ✨ Features
 
-## Getting Started
+### Core Functionality
+- 🔄 **RabbitMQ Feed Integration** – Stream live markets, fixtures, and scoreboards
+- 🔌 **Automatic Reconnection** – Detects disconnections and recovers missed data
+- 📊 **Rich Data Models** – Complete type coverage for all message types
+- 🌐 **HTTP Client** – Fetch matches and markets on-demand
+- 📈 **Multiple Odds Formats** – Decimal, American, and Fractional
+- 🎮 **Multi-Sport Support** – CS:GO, Dota 2, LoL, Valorant, eSoccer, eBasketball, eHockey
 
-1. Clone the repository and edit credentials in
-   `src/main/java/com/pandascore/sdk/examples/FeedConsole.java`.
-2. Run the example:
+### Recent Additions (v2.0)
+- ✅ **18 new data type classes** including League, Tournament, Game, Player, and streaming types
+- ✅ **28 new fields** in FixtureMatch for complete tournament hierarchy
+- ✅ **2 new HTTP methods** (fetchMatch, fetchMarkets)
+- ✅ **eHockey support** with full scoreboard tracking
+- ✅ **Timer objects** for accurate live game timing
+- ✅ **5 production-ready examples** covering all use cases
 
-   ```bash
-   ./gradlew clean run
-   ```
+## 📋 Requirements
 
-3. Observe console logs for feed messages, heartbeats and automatic recovery
-   after any disconnection.
+- **Java 17** or higher
+- **Gradle** (wrapper included - `./gradlew`)
+- Valid PandaScore API credentials
 
-## Configuration
+## 🚀 Quick Start
 
-All runtime settings are provided through `SDKOptions`. Use the builder to
-construct an instance and initialise the SDK once at application start:
+### 1. Clone and Build
 
-```java
-SDKOptions opts = SDKOptions.builder()
-        .apiToken("your-api-token")
-        .companyId(123)
-        .email("you@example.com")
-        .password("secret")
-        .queueBinding(SDKOptions.QueueBinding.builder()
-                .queueName("my-queue")
-                .routingKey("#")
-                .build())
-        .alwaysLogPayload(true)
-        .americanOdds(true)
-        .fractionalOdds(true)
-        .build();
-SDKConfig.setOptions(opts);
+```bash
+git clone https://github.com/jernej19/java-sdk.git
+cd java-sdk
+chmod +x gradlew
+./gradlew build
 ```
 
-`SDKOptions` fields:
+### 2. Configure Credentials
 
-- `apiToken` – token for REST requests.
-- `companyId` – numeric identifier of your PandaScore account.
-- `email` / `password` – credentials used to connect to RabbitMQ.
-- `feedHost` – RabbitMQ host.
-- `apiBaseUrl` – base URL for the recovery API.
-- `queueBindings` – list of queue/routing‑key pairs to declare.
-- `alwaysLogPayload` – log payloads at INFO level when `true`.
-- `americanOdds` / `fractionalOdds` – compute additional odds representations.
-
-## Consuming the Feed
-
-Create an `EventHandler` to track connectivity and a `RabbitMQFeed` to receive
-messages:
+Edit any example file or create your own:
 
 ```java
-EventHandler handler = new EventHandler(evt -> {
-    if ("disconnection".equals(evt)) {
-        // notify your application
-    } else if ("reconnection".equals(evt)) {
-        // resume normal processing
-    }
-});
+SDKOptions options = SDKOptions.builder()
+    .apiToken("YOUR_API_TOKEN")
+    .companyId(YOUR_COMPANY_ID)
+    .email("your-email@example.com")
+    .password("your-password")
+    .queueBinding(
+        SDKOptions.QueueBinding.builder()
+            .queueName("my-queue")
+            .routingKey("#")  // All messages
+            .build()
+    )
+    .americanOdds(true)      // Enable American odds
+    .build();
+
+SDKConfig.setOptions(options);
+```
+
+### 3. Connect and Receive Odds
+
+```java
+ObjectMapper mapper = new ObjectMapper()
+    .registerModule(new JavaTimeModule());
+
+EventHandler handler = new EventHandler(event ->
+    System.out.println("Event: " + event)
+);
 
 RabbitMQFeed feed = new RabbitMQFeed(handler);
-feed.connect(json -> {
-    // json is a Jackson JsonNode; convert to the desired DTO
+feed.connect(message -> {
+    JsonNode json = (JsonNode) message;
+
+    if ("markets".equals(json.get("type").asText())) {
+        MarketsMessage markets = mapper.treeToValue(json, MarketsMessage.class);
+
+        markets.getMarkets().forEach(market -> {
+            System.out.println("Market: " + market.getName());
+            market.getSelections().forEach(sel -> {
+                System.out.printf("  %s: %.2f (%s)%n",
+                    sel.getName(),
+                    sel.getOddsDecimalWithOverround(),
+                    formatAmerican(sel.getOddsAmericanWithOverround())
+                );
+            });
+        });
+    }
 });
 ```
 
-`connect` starts consumers on all configured queues and automatically retries
-with exponential back‑off if the connection drops. Incoming messages are passed
-to the provided `Consumer<Object>` as Jackson `JsonNode` instances.
+### 4. Run Examples
 
-## HTTP Recovery
+```bash
+# Basic odds display
+./gradlew run --args="com.pandascore.sdk.examples.Example1_BasicOdds"
 
-When a disconnection occurs, the SDK can recover missed data using the typed
-methods in `MatchesClient`:
+# Match/fixture updates
+./gradlew run --args="com.pandascore.sdk.examples.Example2_FixtureUpdates"
 
-- `List<MarketsRecoveryMatch> recoverMarkets(String since)` – return markets
-  updated after the given ISO‑8601 timestamp.
-- `List<FixtureMatch> fetchMatchesRange(String start, String end)` – return
-  matches modified between the two timestamps.
+# Filter specific markets
+./gradlew run --args="com.pandascore.sdk.examples.Example3_SpecificMarkets"
 
-Example usage:
+# HTTP API usage
+./gradlew run --args="com.pandascore.sdk.examples.Example4_HTTPFetchMarkets"
+
+# Monitor all message types
+./gradlew run --args="com.pandascore.sdk.examples.Example5_AllMessageTypes"
+```
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | Complete setup guide with code examples |
+| [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) | Detailed guide to all 5+ examples |
+| [IMPROVEMENTS_NEEDED.md](IMPROVEMENTS_NEEDED.md) | Full data model reference and SDK capabilities |
+
+## 🎮 Examples Overview
+
+The SDK includes 5+ production-ready examples for different use cases:
+
+| Example | Use Case | Key Features |
+|---------|----------|--------------|
+| **Example1_BasicOdds** | Getting started | Simple odds display, American format |
+| **Example2_FixtureUpdates** | Match tracking | Status changes, teams, tournaments |
+| **Example3_SpecificMarkets** | Market filtering | Filter by template, multiple formats |
+| **Example4_HTTPFetchMarkets** | On-demand queries | REST API, no streaming required |
+| **Example5_AllMessageTypes** | Full monitoring | All messages, statistics, comprehensive |
+| **SimpleGetOdds** | Minimal example | Copy-paste ready starter |
+| **FeedConsole** | Production template | Full-featured with recovery |
+
+See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed documentation.
+
+## ⚙️ Configuration Options
+
+### Required Fields
 
 ```java
-List<MarketsRecoveryMatch> markets =
-    MatchesClient.recoverMarkets("2025-05-22T14:00:00Z");
+SDKOptions options = SDKOptions.builder()
+    .apiToken("...")        // REST API authentication token
+    .companyId(12345)       // Your PandaScore account ID
+    .email("...")           // Account email
+    .password("...")        // Account password
+    .queueBinding(...)      // At least one queue binding
+```
+
+### Optional Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `feedHost` | String | `trading-feed.pandascore.co` | RabbitMQ hostname |
+| `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | REST API base URL |
+| `americanOdds` | boolean | `false` | Compute American odds (+100, -200) |
+| `fractionalOdds` | boolean | `false` | Compute fractional odds (3/2, 8/13) |
+| `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection |
+| `alwaysLogPayload` | boolean | `false` | Log all payloads at INFO level |
+
+### Queue Bindings
+
+Control which messages you receive using routing keys:
+
+```java
+.queueBinding(
+    SDKOptions.QueueBinding.builder()
+        .queueName("my-queue")
+        .routingKey("#")  // Pattern
+        .build()
+)
+```
+
+**Common routing key patterns:**
+- `#` - All messages
+- `pandascore.markets.#` - Markets only
+- `pandascore.fixtures.#` - Fixtures only
+- `pandascore.markets.*.*.created` - Market creation events only
+- `pandascore.fixtures.*.*.started` - Match start events only
+
+## 🔌 API Reference
+
+### Streaming API (RabbitMQ)
+
+```java
+RabbitMQFeed feed = new RabbitMQFeed(eventHandler);
+feed.connect(message -> {
+    // Process JsonNode message
+});
+```
+
+**Message Types:**
+- **Markets** - Odds and betting markets
+- **Fixtures** - Match and tournament information
+- **Scoreboards** - Live scores and game state
+
+### HTTP API (REST)
+
+```java
+// Fetch single match
+FixtureMatch match = MatchesClient.fetchMatch("123456");
+
+// Fetch all markets for a match
+List<MarketsMessageMarket> markets = MatchesClient.fetchMarkets("123456");
+
+// Recover markets since timestamp
+List<MarketsRecoveryMatch> recovery =
+    MatchesClient.recoverMarkets("2026-01-20T10:00:00Z");
+
+// Fetch matches in time range
 List<FixtureMatch> matches =
-    MatchesClient.fetchMatchesRange("2025-05-22T14:00:00Z", "2025-05-22T15:00:00Z");
+    MatchesClient.fetchMatchesRange("2026-01-20T10:00:00Z", "2026-01-20T11:00:00Z");
 ```
 
-## Logging
+## 📦 Data Models
 
-`logback.xml` defines asynchronous file appenders:
-`sdk-debug.log`, `sdk-info.log` and `sdk-warn.log`. Each file only accepts
-entries at its log level so information is not duplicated. Console and file
-appenders are wrapped in `AsyncAppender` so feed threads are never blocked.
+### Complete Type Coverage
 
-Log entries include MDC tags controlled by the `sdk.mdc.pattern` system
-property. The default pattern is:
+The SDK includes comprehensive data models for all message types:
 
-```text
-[session=%X{session}] [customerId=%X{customerId}] [feed=%X{feed}] [messageType=%X{messageType}] [operation=%X{operation}] [routingKey=%X{routingKey}]
+**Markets** (`com.pandascore.sdk.model.feed.markets`)
+- `MarketsMessage` - Top-level markets update
+- `MarketsMessageMarket` - Individual market with 50+ fields
+- `MarketsMessageSelection` - Selection with odds in all formats
+- `MarketAction` - Action enum (created, odds_changed, settled, etc.)
+
+**Fixtures** (`com.pandascore.sdk.model.feed.fixtures`)
+- `FixtureMessage` - Match/tournament updates
+- `FixtureMatch` - Complete match details (37 fields)
+- `League`, `Tournament`, `Videogame` - Tournament hierarchy
+- `Game`, `GameMap`, `GameWinner` - Individual game details
+- `Player`, `FixtureTeam`, `FixtureOpponent` - Participant data
+- `Live`, `StreamInfo`, `Streams` - Streaming information
+- `MatchStatus`, `MatchType`, `GameStatus` - Status enums
+
+**Scoreboards** (`com.pandascore.sdk.model.feed.scoreboard`)
+- `ScoreboardEsoccer`, `ScoreboardEbasketball`, `ScoreboardEhockey`
+- `ScoreboardCs`, `ScoreboardDota2`, `ScoreboardLol`, `ScoreboardValorant`
+- Timer objects with pause state and period tracking
+
+## 🎯 Common Use Cases
+
+### 1. Live Odds Display
+
+```java
+feed.connect(message -> {
+    if (isMarkets(message)) {
+        MarketsMessage markets = parse(message);
+        displayOdds(markets);
+    }
+});
 ```
 
-Provide a custom value via `-Dsdk.mdc.pattern=...` to remove or reorder tags.
+See: [Example1_BasicOdds.java](src/main/java/com/pandascore/sdk/examples/Example1_BasicOdds.java)
 
-## Building and Javadoc
+### 2. Match Status Tracking
 
-Compile and run the example:
+```java
+feed.connect(message -> {
+    if (isFixture(message)) {
+        FixtureMessage fixture = parse(message);
+        if ("started".equals(fixture.getAction())) {
+            handleMatchStart(fixture.getMatch());
+        }
+    }
+});
+```
+
+See: [Example2_FixtureUpdates.java](src/main/java/com/pandascore/sdk/examples/Example2_FixtureUpdates.java)
+
+### 3. Specific Market Types
+
+```java
+List<String> wantedMarkets = List.of("winner-2-way", "correct-score");
+
+markets.getMarkets().stream()
+    .filter(m -> wantedMarkets.contains(m.getTemplate()))
+    .forEach(this::processMarket);
+```
+
+See: [Example3_SpecificMarkets.java](src/main/java/com/pandascore/sdk/examples/Example3_SpecificMarkets.java)
+
+### 4. Initial Data Snapshot
+
+```java
+// Fetch current state before streaming
+FixtureMatch match = MatchesClient.fetchMatch(matchId);
+List<MarketsMessageMarket> markets = MatchesClient.fetchMarkets(matchId);
+
+// Then start streaming for updates
+feed.connect(this::handleUpdates);
+```
+
+See: [Example4_HTTPFetchMarkets.java](src/main/java/com/pandascore/sdk/examples/Example4_HTTPFetchMarkets.java)
+
+## 🔄 Automatic Recovery
+
+The SDK automatically handles disconnections:
+
+```java
+EventHandler handler = new EventHandler(event -> {
+    if ("disconnection".equals(event)) {
+        // Feed disconnected - SDK will auto-reconnect
+    } else if ("reconnection".equals(event)) {
+        // Feed reconnected - SDK already recovered missed data
+    }
+});
+```
+
+**Recovery behavior** (when `recoverOnReconnect = true`):
+1. Detects disconnection after 30 seconds without heartbeat
+2. Automatically reconnects with exponential backoff
+3. Recovers markets via `recoverMarkets(downtime)`
+4. Fetches modified matches via `fetchMatchesRange(downtime, uptime)`
+5. Emits "reconnection" event when complete
+
+Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually.
+
+## 📝 Logging
+
+The SDK uses SLF4J with Logback for comprehensive logging:
+
+**Log Files:**
+- `sdk-debug.log` - Debug level only
+- `sdk-info.log` - Info level only
+- `sdk-warn.log` - Warning and error level
+
+**MDC Context Tags:**
+- `session` - Session UUID
+- `customerId` - Company ID
+- `feed` - Feed identifier
+- `messageType` - Message type
+- `operation` - Current operation
+- `routingKey` - AMQP routing key
+
+**Configuration:**
+```xml
+<!-- Customize MDC pattern via system property -->
+-Dsdk.mdc.pattern="[session=%X{session}] [customerId=%X{customerId}]"
+```
+
+All appenders use `AsyncAppender` to prevent blocking feed processing.
+
+## 🏗️ Building
+
+### Compile
 
 ```bash
 ./gradlew build
 ```
 
-Generate API documentation:
+### Run Tests
+
+```bash
+./gradlew test
+```
+
+### Generate Javadoc
 
 ```bash
 ./gradlew javadoc
+# Output: build/docs/javadoc/index.html
 ```
 
-HTML files are written to `build/docs/javadoc`. A Javadoc JAR can be produced
-with:
+### Create JAR
 
 ```bash
-./gradlew javadocJar
+./gradlew jar
+# Output: build/libs/sdk.jar
 ```
 
-## Example
+## 🐛 Troubleshooting
 
-`FeedConsole` demonstrates end‑to‑end usage, from configuration to message
-handling. Refer to the Javadoc for classes under `com.pandascore.sdk.model.feed`
-for full details of each payload structure.
+### Permission Denied: ./gradlew
 
+```bash
+chmod +x gradlew
+```
+
+Or use:
+```bash
+sh gradlew build
+```
+
+### No Messages Received
+
+- Verify routing key is correct (`#` for all messages)
+- Check credentials are valid
+- Ensure there are active matches
+- Enable debug logging: `.alwaysLogPayload(true)`
+
+### Connection Issues
+
+- Verify firewall allows AMQPS (port 5671)
+- Check `feedHost` is reachable
+- Review logs in `sdk-warn.log`
+
+### Parsing Errors
+
+- Ensure Jackson dependencies are included
+- Verify you're using correct model class for message type
+- Check raw JSON with `.alwaysLogPayload(true)`
+
+## 🔗 Links
+
+- **API Documentation**: https://developers.pandascore.co
+- **Examples Guide**: [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md)
+- **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
+- **SDK Improvements**: [IMPROVEMENTS_NEEDED.md](IMPROVEMENTS_NEEDED.md)
+
+## 📄 License
+
+Copyright © 2026 PandaScore. All rights reserved.
+
+## 🆘 Support
+
+- **Issues**: https://github.com/jernej19/java-sdk/issues
+- **Documentation**: See files listed above
+- **Email**: support@pandascore.co
+
+---
+
+**Ready to get started?** Check out [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide!
