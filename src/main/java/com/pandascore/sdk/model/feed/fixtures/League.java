@@ -3,30 +3,23 @@ package com.pandascore.sdk.model.feed.fixtures;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import java.util.List;
 
 /**
- * Basic team information for a fixture.
+ * League information.
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class FixtureTeam {
-    /** Team ID */
+public class League {
+    /** League ID */
     private Long id;
-    /** Team display name */
+    /** League name */
     private String name;
-    /** Fixture slug */
+    /** League slug */
     private String slug;
-    /** Short code (e.g., TSM) */
-    private String acronym;
-    /** Team logo URL */
+    /** League logo URL */
     @JsonProperty("image_url") private String imageUrl;
-    /** Dark mode logo URL */
-    @JsonProperty("dark_mode_image_url") private String darkModeImageUrl;
-    /** Country */
-    private String location;
+    /** League website URL */
+    private String url;
     /** Last modified timestamp */
     @JsonProperty("modified_at") private String modifiedAt;
-    /** Team players */
-    private List<Player> players;
 }

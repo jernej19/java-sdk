@@ -1,6 +1,7 @@
 package com.pandascore.sdk.http;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -9,6 +10,7 @@ import com.pandascore.sdk.config.SDKOptions;
 import com.pandascore.sdk.model.feed.fixtures.FixtureMatch;
 import com.pandascore.sdk.model.feed.markets.MarketsMessageMarket;
 import com.pandascore.sdk.model.feed.markets.MarketsRecoveryMatch;
+import lombok.Data;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -21,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * HTTP client for PandaScore recovery and match-fetch endpoints.
@@ -117,6 +120,70 @@ public final class MatchesClient {
         );
         try {
             return get(url, new TypeReference<List<FixtureMatch>>() {});
+        } finally {
+            MDC.remove("operation");
+            MDC.remove("customerId");
+        }
+    }
+
+    /**
+     * Fetch a single match by ID.
+     *
+     * @param id Match ID
+     * @return Match details
+     * @throws IOException on network or parsing errors
+     */
+    public static FixtureMatch fetchMatch(String id) throws IOException {
+        SDKOptions opts = SDKConfig.getInstance().getOptions();
+        MDC.put("customerId", String.valueOf(opts.getCompanyId()));
+        MDC.put("operation", "fetchMatch");
+        String url = String.format(
+            "%s/%s?token=%s",
+            opts.getApiBaseUrl(), id, opts.getApiToken()
+        );
+        try {
+            return get(url, new TypeReference<FixtureMatch>() {});
+        } finally {
+            MDC.remove("operation");
+            MDC.remove("customerId");
+        }
+    }
+
+    /**
+     * Response wrapper for markets API.
+     */
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MarketsResponse {
+        private List<GameMarkets> games;
+
+        @Data
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class GameMarkets {
+            private List<MarketsMessageMarket> markets;
+        }
+    }
+
+    /**
+     * Fetch markets for a specific match.
+     *
+     * @param matchId Match ID
+     * @return List of markets across all games
+     * @throws IOException on network or parsing errors
+     */
+    public static List<MarketsMessageMarket> fetchMarkets(String matchId) throws IOException {
+        SDKOptions opts = SDKConfig.getInstance().getOptions();
+        MDC.put("customerId", String.valueOf(opts.getCompanyId()));
+        MDC.put("operation", "fetchMarkets");
+        String url = String.format(
+            "%s/%s/markets?token=%s",
+            opts.getApiBaseUrl(), matchId, opts.getApiToken()
+        );
+        try {
+            MarketsResponse response = get(url, new TypeReference<MarketsResponse>() {});
+            return response.getGames().stream()
+                .flatMap(game -> game.getMarkets().stream())
+                .collect(Collectors.toList());
         } finally {
             MDC.remove("operation");
             MDC.remove("customerId");

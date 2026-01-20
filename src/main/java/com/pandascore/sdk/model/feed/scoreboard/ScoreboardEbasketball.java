@@ -26,8 +26,12 @@ public class ScoreboardEbasketball {
         private int position;
         /** Status of the game. */
         private String status;
+        /** Match timer object (counts DOWN: 300→0 each quarter). */
+        private EbasketballTimerObject timer;
+        /** Current quarter (1-4 regulation, >4 OT). */
+        private Integer currentQuarter;
         /** Individual scores for each player. */
-        private List<EbasketballPlayer> scores;
+        private List<EbasketballPlayer> players;
         /** Score for each quarter of the game. */
         private List<EbasketballQuarter> quarters;
     }
