@@ -65,7 +65,7 @@ public class Example2_FixtureUpdates {
                     if (match == null) return;
 
                     System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    System.out.println("🎮 FIXTURE UPDATE: " + msg.getAction().toUpperCase());
+                    System.out.println("🎮 FIXTURE UPDATE: " + msg.getAction().toString().toUpperCase());
                     System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     System.out.println("Match:       " + match.getName());
                     System.out.println("ID:          " + match.getId());
@@ -105,9 +105,9 @@ public class Example2_FixtureUpdates {
                     // Betting metadata
                     if (match.getBettingMetadata() != null) {
                         System.out.println("\n📈 Betting:");
-                        System.out.println("   Bookable:    " + match.getBettingMetadata().getBookable());
-                        System.out.println("   Booked:      " + match.getBettingMetadata().getBooked());
-                        System.out.println("   Live:        " + match.getBettingMetadata().getLiveAvailable());
+                        System.out.println("   Bookable:    " + match.getBettingMetadata().isBookable());
+                        System.out.println("   Booked:      " + match.getBettingMetadata().isBooked());
+                        System.out.println("   Live:        " + match.getBettingMetadata().isLiveAvailable());
                     }
 
                 } catch (Exception e) {
