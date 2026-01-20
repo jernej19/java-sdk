@@ -32,22 +32,24 @@ public class FeedConsole {
         MDC.put("session", UUID.randomUUID().toString());
 
         // 1) Quick-start credentials & queue
-        SDKOptions.SDKOptionsBuilder ob = SDKOptions.builder()
+        SDKOptions options = SDKOptions.builder()
                 .apiToken("YOUR_TOKEN")
-                .companyId() // YOUR COMPANY ID
+                .companyId(12345) // YOUR COMPANY ID
                 .email("EMAIL")
                 .password("PASSWORD")
-                .alwaysLogPayload(true);
-        ob.queueBinding(
-                SDKOptions.QueueBinding.builder()
-                        .queueName("QUEUE_NAME")
-                        .routingKey("#")
-                        .build()
-        );
-        SDKOptions opts = ob.build();
-        SDKConfig.setOptions(opts);
+                .queueBinding(
+                        SDKOptions.QueueBinding.builder()
+                                .queueName("QUEUE_NAME")
+                                .routingKey("#")
+                                .build()
+                )
+                .americanOdds(true)     // Enable American odds
+                .alwaysLogPayload(false)
+                .build();
 
-        logger.info("Starting SDK for customer {}", opts.getCompanyId());
+        SDKConfig.setOptions(options);
+
+        logger.info("Starting SDK for customer {}", options.getCompanyId());
 
         // 2) Disconnection/Reconnection handler
         final Instant[] downAt = {null};
@@ -89,14 +91,17 @@ public class FeedConsole {
                 // Print structured info
                 for (MarketsMessageMarket m : markets) {
                     System.out.printf(
-                            "Event %s #%d - Market '%s' (id=%s)%n",
+                            "Event %s #%d - Market '%s' (status=%s, template=%s)%n",
                             eventType, eventId,
-                            m.getName(), m.getId()
+                            m.getName(), m.getStatus(), m.getTemplate()
                     );
                     for (MarketsMessageSelection sel : m.getSelections()) {
                         System.out.printf(
-                                "  -> Selection '%s': odd=%s%n",
-                                sel.getName(), sel.getOddsDecimal()
+                                "  -> %-30s | Decimal: %6.2f | American: %7s | Prob: %5.1f%%%n",
+                                sel.getName(),
+                                sel.getOddsDecimalWithOverround(),
+                                formatAmerican(sel.getOddsAmericanWithOverround()),
+                                sel.getProbabilityWithOverround() * 100
                         );
                     }
                 }
@@ -107,5 +112,13 @@ public class FeedConsole {
 
         logger.info("Feed running … press Ctrl-C to quit.");
         new CountDownLatch(1).await();
+    }
+
+    /**
+     * Format American odds with proper sign.
+     */
+    private static String formatAmerican(Double american) {
+        if (american == null) return "N/A";
+        return (american > 0 ? "+" : "") + String.format("%.0f", american);
     }
 }
