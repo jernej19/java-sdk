@@ -37,7 +37,7 @@ public class Example2_FixtureUpdates {
             .queueBinding(
                 SDKOptions.QueueBinding.builder()
                     .queueName("fixture-updates-queue")
-                    .routingKey("pandascore.fixtures.#")  // Only fixtures
+                    .routingKey("#")  // All messages (filter in code)
                     .build()
             )
             .build();

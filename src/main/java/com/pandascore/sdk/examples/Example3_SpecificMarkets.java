@@ -48,7 +48,7 @@ public class Example3_SpecificMarkets {
             .queueBinding(
                 SDKOptions.QueueBinding.builder()
                     .queueName("specific-markets-queue")
-                    .routingKey("pandascore.markets.#")
+                    .routingKey("#")  // All messages (filter in code)
                     .build()
             )
             .americanOdds(true)
