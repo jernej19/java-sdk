@@ -69,14 +69,15 @@ public class EventHandler implements AutoCloseable {
 
     /**
      * Call when a heartbeat or health check is received to reset the timer.
+     * If previously disconnected, initiates recovery process before notifying application.
      */
     public void heartbeat() {
         lastBeat = Instant.now();
         if (disconnected) {
             disconnected = false;
             Instant up = lastBeat;
-            MDC.put("operation", "reconnection");
-            logger.info("Reconnection detected");
+            MDC.put("operation", "reconnect");
+            logger.info("Heartbeat restored - starting recovery");
             try {
                 if (downAt != null) {
                     var recovered = MatchesClient.recoverMarkets(downAt.toString());
@@ -107,11 +108,13 @@ public class EventHandler implements AutoCloseable {
                             matches.size() > 10 ? " (+" + (matches.size() - 10) + " more)" : "");
                     }
                 }
+                logger.info("Recovery complete - reconnection successful");
             } catch (Exception e) {
                 logger.error("Automatic recovery failed", e);
             } finally {
                 downAt = null;
             }
+            // Notify application AFTER recovery is complete
             sink.accept("reconnection");
             MDC.remove("operation");
         }
