@@ -303,28 +303,60 @@ feed.connect(this::handleUpdates);
 
 See: [Example4_HTTPFetchMarkets.java](src/main/java/com/pandascore/sdk/examples/Example4_HTTPFetchMarkets.java)
 
-## 🔄 Automatic Recovery
+## 🔄 Automatic Recovery & Disconnection Handling
 
-The SDK automatically handles disconnections:
+The SDK automatically handles disconnections with a clear flow to help you manage market states:
 
 ```java
 EventHandler handler = new EventHandler(event -> {
     if ("disconnection".equals(event)) {
-        // Feed disconnected - SDK will auto-reconnect
+        // ⚠️ DISCONNECTED - Suspend/close your markets immediately
+        logger.warn("Feed disconnected - suspending markets");
+        suspendAllMarkets();
     } else if ("reconnection".equals(event)) {
-        // Feed reconnected - SDK already recovered missed data
+        // ✅ RECONNECTED - Recovery complete, safe to reopen markets
+        logger.info("Feed reconnected - recovery complete");
+        reopenMarkets();
     }
 });
 ```
 
-**Recovery behavior** (when `recoverOnReconnect = true`):
-1. Detects disconnection after 30 seconds without heartbeat
-2. Automatically reconnects with exponential backoff
-3. Recovers markets via `recoverMarkets(downtime)`
-4. Fetches modified matches via `fetchMatchesRange(downtime, uptime)`
-5. Emits "reconnection" event when complete
+### Disconnection/Reconnection Flow
 
-Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually.
+**When disconnection is detected** (after 30 seconds without heartbeat):
+1. ⚠️ **"disconnection" event fired** → Your callback is notified **immediately**
+2. 👉 **Action required**: Suspend/close all markets on your side
+3. SDK begins automatic reconnection attempts with exponential backoff
+
+**When heartbeat is restored**:
+1. 🔄 SDK logs: "Heartbeat restored - starting recovery"
+2. 📊 SDK calls `recoverMarkets(downtime)` to fetch updated markets
+3. 📋 SDK calls `fetchMatchesRange(downtime, uptime)` to fetch modified matches
+4. ✅ SDK logs: "Recovery complete - reconnection successful"
+5. ✅ **"reconnection" event fired** → Your callback is notified
+6. 👉 **Action required**: Reopen/resume markets - data is now synchronized
+
+### Important Notes
+
+- **Customer callback timing**: You receive "disconnection" immediately, but "reconnection" **only after recovery completes**
+- This ensures you have fresh data before reopening markets
+- All recovered data is logged with details (match IDs, market counts, etc.)
+- Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually
+
+### Example Log Output
+
+```
+11:20:07 [INFO] Disconnection detected
+         ↓ (customer callback fires - suspend markets)
+11:20:50 [INFO] Heartbeat restored - starting recovery
+11:20:58 [INFO] Recovered 8 matches with markets (downtime: 2026-01-21T10:20:07Z)
+11:20:58 [INFO]   - Match ID 1328362 has 1 markets across 1 games
+11:20:58 [INFO]   - Match ID 1328652 has 1 markets across 1 games
+11:20:58 [INFO] Recovered 5 modified matches
+11:20:58 [INFO]   - Modified match IDs: 1328362, 1328652, 1328686
+11:20:58 [INFO] Recovery complete - reconnection successful
+         ↓ (customer callback fires - reopen markets)
+```
 
 ## 📝 Logging
 
