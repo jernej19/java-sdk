@@ -73,7 +73,7 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.Example1_BasicOdds
       Team B                    1.62   -161  [60.0%]
 ```
 
-**Routing key**: `pandascore.markets.#` (markets only)
+**Routing key**: `#` (filters for markets in code)
 
 ---
 
@@ -109,7 +109,7 @@ Tier:        s
    • Team B (TB)
 ```
 
-**Routing key**: `pandascore.fixtures.#` (fixtures only)
+**Routing key**: `#` (filters for fixtures in code)
 
 ---
 
@@ -272,16 +272,18 @@ SDKOptions options = SDKOptions.builder()
 
 ## 🎯 Routing Keys
 
-Control which messages you receive:
+Subscribe to the feed using routing keys:
 
 | Routing Key | Receives |
 |-------------|----------|
-| `#` | All messages |
-| `pandascore.markets.#` | All market updates |
-| `pandascore.fixtures.#` | All fixture updates |
-| `pandascore.markets.*.*.created` | Only market creation events |
-| `pandascore.fixtures.*.*.started` | Only match start events |
-| `pandascore.markets.match.*.odds_changed` | Only odds changes for matches |
+| `#` | All messages (recommended) |
+
+**Filtering Messages**: Use `#` to receive all messages, then filter in your application code based on the message `type` field:
+- `"markets"` - Odds and betting markets
+- `"fixture"` - Match and tournament updates
+- `"scoreboard"` - Live game scores
+
+See examples for how to filter by message type in code.
 
 ---
 

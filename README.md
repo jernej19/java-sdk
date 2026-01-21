@@ -128,7 +128,7 @@ feed.connect(message -> {
 |----------|-------------|
 | [QUICKSTART.md](QUICKSTART.md) | Complete setup guide with code examples |
 | [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) | Detailed guide to all 5+ examples |
-| [IMPROVEMENTS_NEEDED.md](IMPROVEMENTS_NEEDED.md) | Full data model reference and SDK capabilities |
+| [API Documentation](https://pandaodds.readme.io/) | Official PandaScore API documentation |
 
 ## 🎮 Examples Overview
 
@@ -184,11 +184,9 @@ Control which messages you receive using routing keys:
 ```
 
 **Common routing key patterns:**
-- `#` - All messages
-- `pandascore.markets.#` - Markets only
-- `pandascore.fixtures.#` - Fixtures only
-- `pandascore.markets.*.*.created` - Market creation events only
-- `pandascore.fixtures.*.*.started` - Match start events only
+- `#` - All messages (recommended - filter in your code as needed)
+
+> **Note**: To filter for specific message types (markets, fixtures, scoreboards), use the `#` routing key and filter messages in your application code based on the `type` field.
 
 ## 🔌 API Reference
 
@@ -415,10 +413,9 @@ sh gradlew build
 
 ## 🔗 Links
 
-- **API Documentation**: https://developers.pandascore.co
+- **API Documentation**: https://pandaodds.readme.io/
 - **Examples Guide**: [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md)
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
-- **SDK Improvements**: [IMPROVEMENTS_NEEDED.md](IMPROVEMENTS_NEEDED.md)
 
 ## 📄 License
 
