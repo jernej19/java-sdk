@@ -43,7 +43,6 @@ public class FeedConsole {
                                 .routingKey("#")
                                 .build()
                 )
-                .americanOdds(true)     // Enable American odds
                 .alwaysLogPayload(false)
                 .build();
 

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Example 5: All Message Types
+ * Basic Example: All Message Types
  *
  * Comprehensive example showing all message types:
  * - Markets (odds updates)
@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter;
  *
  * Shows message statistics and provides summary view of activity.
  */
-public class Example5_AllMessageTypes {
+public class BasicExample {
 
     private static int marketsCount = 0;
     private static int fixturesCount = 0;
@@ -31,7 +31,7 @@ public class Example5_AllMessageTypes {
     private static int otherCount = 0;
 
     public static void main(String[] args) throws Exception {
-        System.out.println("=== Example 5: All Message Types ===\n");
+        System.out.println("=== PandaScore SDK Basic Example ===\n");
 
         // Configure SDK
         SDKOptions options = SDKOptions.builder()
@@ -41,16 +41,15 @@ public class Example5_AllMessageTypes {
             .password("your-password")
             .queueBinding(
                 SDKOptions.QueueBinding.builder()
-                    .queueName("all-messages-queue")
+                    .queueName("your-queue-name")
                     .routingKey("#")  // Subscribe to ALL messages
                     .build()
             )
-            .americanOdds(true)
             .build();
 
         SDKConfig.setOptions(options);
 
-        // Event handler with stats
+        // Event handler for disconnection/reconnection
         EventHandler eventHandler = new EventHandler(event -> {
             String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
             System.out.println("[" + time + "] 🔔 " + event.toUpperCase());

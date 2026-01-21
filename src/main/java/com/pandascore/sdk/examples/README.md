@@ -1,18 +1,13 @@
 # PandaScore Java SDK Examples
 
-Complete set of examples demonstrating different use cases for the Java SDK.
+Production-ready examples demonstrating real-time esports odds integration.
 
-## 📋 Quick Reference
+## 📋 Available Examples
 
-| Example | Use Case | Features |
-|---------|----------|----------|
-| `Example1_BasicOdds.java` | Getting started with odds | Simple odds display, American format |
-| `Example2_FixtureUpdates.java` | Match status tracking | Fixture updates, match details |
-| `Example3_SpecificMarkets.java` | Filter market types | Market filtering, multiple odds formats |
-| `Example4_HTTPFetchMarkets.java` | One-time data fetch | HTTP API, snapshot queries |
-| `Example5_AllMessageTypes.java` | Monitor everything | All message types, statistics |
-| `SimpleGetOdds.java` | Minimal example | Copy-paste ready |
-| `FeedConsole.java` | Production-ready template | Full featured with recovery |
+| Example | Description |
+|---------|-------------|
+| `BasicExample.java` | Monitors all message types with statistics tracking |
+| `FeedConsole.java` | Production-ready template with market odds display |
 
 ---
 
@@ -24,8 +19,11 @@ Complete set of examples demonstrating different use cases for the Java SDK.
 # Make gradlew executable (one time)
 chmod +x gradlew
 
-# Run specific example
-./gradlew run --args="com.pandascore.sdk.examples.Example1_BasicOdds"
+# Run BasicExample
+./gradlew run --args="com.pandascore.sdk.examples.BasicExample"
+
+# Run FeedConsole
+./gradlew run --args="com.pandascore.sdk.examples.FeedConsole"
 ```
 
 ### Option 2: Compile and Run with Java
@@ -35,7 +33,7 @@ chmod +x gradlew
 ./gradlew build
 
 # Run example
-java -cp build/libs/sdk.jar com.pandascore.sdk.examples.Example1_BasicOdds
+java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 ```
 
 ### Option 3: From IDE
@@ -48,181 +46,40 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.Example1_BasicOdds
 
 ## 📚 Example Details
 
-### Example 1: Basic Odds Display
-**File**: `Example1_BasicOdds.java`
+### BasicExample - All Message Types Monitor
 
-**Perfect for**: Getting started quickly
+**File**: `BasicExample.java`
 
-**What it does**:
-- Connects to PandaScore feed
-- Displays odds in decimal and American format
-- Shows win probabilities
-- Clean, formatted output
-
-**Output**:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ ODDS UPDATE
-   Match: 1313453
-   Game: cs-go
-   Action: odds_changed
-   Time: 2026-01-20T10:45:13.111Z
-
-   📊 Winner 2-Way [active]
-      Team A                    2.50   +150  [40.0%]
-      Team B                    1.62   -161  [60.0%]
-```
-
-**Routing key**: `#` (filters for markets in code)
-
----
-
-### Example 2: Fixture Updates
-**File**: `Example2_FixtureUpdates.java`
-
-**Perfect for**: Tracking match status changes
+**Perfect for**: Understanding all message types and SDK basics
 
 **What it does**:
-- Monitors fixture/match updates
-- Shows match status changes (started, finished, settled)
-- Displays full match details
-- Shows league and tournament info
-
-**Output**:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎮 FIXTURE UPDATE: STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Match:       Team A vs Team B
-ID:          1313453
-Status:      live
-Game:        cs-go
-Scheduled:   2026-01-20T10:00:00Z
-Started:     2026-01-20T10:05:00Z
-
-League:      ESL Pro League
-Tournament:  Season 19
-Tier:        s
-
-👥 Opponents:
-   • Team A (TA)
-   • Team B (TB)
-```
-
-**Routing key**: `#` (filters for fixtures in code)
-
----
-
-### Example 3: Specific Market Types
-**File**: `Example3_SpecificMarkets.java`
-
-**Perfect for**: Tracking only certain bet types
-
-**What it does**:
-- Filters for specific market templates
-- Shows multiple odds formats (decimal, American, fractional)
-- Displays market metadata (overround, status)
-- Easily customizable filters
-
-**Market filters** (modify in code):
-```java
-private static final List<String> MARKET_FILTERS = Arrays.asList(
-    "winner-2-way",
-    "winner-3-way",
-    "correct-score"
-);
-```
-
-**Output**:
-```
-======================================================================
-📌 FILTERED MARKETS
-   Match: 1313453
-   Game:  cs-go
-   Action: created
-======================================================================
-
-🎯 Winner 2-Way [winner-2-way]
-   Status: active
-   Overround: 104.0%
-   Team A               │   2.50 │   +150 │     3/2 │ 40.0%
-   Team B               │   1.62 │   -161 │    8/13 │ 60.0%
-```
-
-**Routing key**: `pandascore.markets.#`
-
----
-
-### Example 4: HTTP API - Fetch Markets
-**File**: `Example4_HTTPFetchMarkets.java`
-
-**Perfect for**: One-time queries, building snapshots
-
-**What it does**:
-- Uses HTTP endpoints instead of streaming
-- Fetches match details by ID
-- Gets all markets for a specific match
-- No persistent connection needed
-
-**Methods used**:
-- `MatchesClient.fetchMatch(id)` - Get match details
-- `MatchesClient.fetchMarkets(matchId)` - Get all markets
-
-**Output**:
-```
-📋 Fetching match details...
-
-Match: Team A vs Team B
-Status: live
-Scheduled: 2026-01-20T10:00:00Z
-League: ESL Pro League
-
-Teams:
-  • Team A
-  • Team B
-
-============================================================
-📊 Fetching markets for match 1313453...
-
-Found 156 markets
-
-🎯 Winner 2-Way
-   Template: winner-2-way
-   Status: active
-   Selections:
-      Team A                     2.50  (+150)  [40.0%]
-      Team B                     1.62  (-161)  [60.0%]
-```
-
-**No routing key needed** (HTTP only)
-
----
-
-### Example 5: All Message Types
-**File**: `Example5_AllMessageTypes.java`
-
-**Perfect for**: Monitoring full feed activity
-
-**What it does**:
-- Processes all message types (markets, fixtures, scoreboards)
-- Tracks message counts
+- Monitors markets, fixtures, and scoreboard messages
+- Tracks message statistics (counts by type)
 - Prints statistics every 10 seconds
-- Shows comprehensive feed overview
+- Handles disconnection/reconnection events
+
+**Key Features**:
+- ✅ All message types (markets, fixtures, scoreboards)
+- ✅ Statistics tracking
+- ✅ Event handling (disconnection/reconnection)
+- ✅ Clean console output
 
 **Output**:
 ```
+=== PandaScore SDK Basic Example ===
+
 ✓ Connected! Monitoring all message types...
   Stats will be printed every 10 seconds.
 
 📊 MARKETS - Match #1313453
    Action: odds_changed
-   Markets: 3
+   Markets: 12
    Game: cs-go
    First: Winner 2-Way
 
 🎮 FIXTURE - STARTED
    Match ID: 1313453
-   Event: match #1313453
+   Event: match #12345
    Game: cs-go
    Name: Team A vs Team B
    Status: live
@@ -230,162 +87,167 @@ Found 156 markets
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📈 MESSAGE STATISTICS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   Markets:        342
-   Fixtures:        18
-   Scoreboards:     45
-   Other:            0
-   TOTAL:          405
+   Markets:          127
+   Fixtures:          23
+   Scoreboards:       45
+   Other:              0
+   TOTAL:            195
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Routing key**: `#` (all messages)
+---
+
+### FeedConsole - Production Template
+
+**File**: `FeedConsole.java`
+
+**Perfect for**: Production deployment and market odds display
+
+**What it does**:
+- Connects to RabbitMQ feed
+- Displays market odds in detailed format
+- Shows decimal and American odds formats
+- Includes disconnection/reconnection handling
+- Production-ready error handling
+
+**Key Features**:
+- ✅ Detailed market odds display
+- ✅ Multiple odds formats (decimal, American)
+- ✅ Selection probabilities
+- ✅ Event handling
+- ✅ Production logging
+
+**Output**:
+```
+Event markets #67890 - Market 'Winner 2-Way' (status=active, template=winner)
+  -> Team Alpha                     | Decimal:   2.50 | American:    +150 | Prob:  40.0%
+  -> Team Beta                      | Decimal:   1.62 | American:    -161 | Prob:  60.0%
+
+Event markets #67890 - Market 'Total Maps' (status=active, template=totals)
+  -> Over 2.5                       | Decimal:   1.85 | American:     -118 | Prob:  53.1%
+  -> Under 2.5                      | Decimal:   2.05 | American:    +105 | Prob:  46.9%
+```
 
 ---
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
-All examples need credentials. Update these values:
+Both examples require valid PandaScore credentials. Edit the example files to add your credentials:
 
 ```java
 SDKOptions options = SDKOptions.builder()
-    .apiToken("YOUR_TOKEN")           // ← Replace with your API token
-    .companyId(12345)                 // ← Replace with your company ID
-    .email("your-email@example.com")  // ← Replace with your email
-    .password("your-password")        // ← Replace with your password
-    .queueBinding(...)
+    .apiToken("YOUR_API_TOKEN")          // Get from PandaScore dashboard
+    .companyId(YOUR_COMPANY_ID)          // Your company ID
+    .email("your-email@example.com")     // Your account email
+    .password("your-password")            // Your account password
+    .queueBinding(
+        SDKOptions.QueueBinding.builder()
+            .queueName("your-queue-name") // Your RabbitMQ queue name
+            .routingKey("#")              // Subscribe to all messages
+            .build()
+    )
     .build();
 ```
 
-### Configuration Options
+### Routing Keys
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `apiToken` | String | **Required** | REST API authentication |
-| `companyId` | long | **Required** | Your company ID |
-| `email` | String | **Required** | Account email |
-| `password` | String | **Required** | Account password |
-| `americanOdds` | boolean | `false` | Enable American odds format |
-| `fractionalOdds` | boolean | `false` | Enable fractional odds format |
-| `recoverOnReconnect` | boolean | `true` | Auto-recover on reconnection |
+Both examples use `#` (all messages). You can filter in your code:
 
----
+```java
+feed.connect(message -> {
+    JsonNode json = (JsonNode) message;
+    String type = json.get("type").asText();
 
-## 🎯 Routing Keys
-
-Subscribe to the feed using routing keys:
-
-| Routing Key | Receives |
-|-------------|----------|
-| `#` | All messages (recommended) |
-
-**Filtering Messages**: Use `#` to receive all messages, then filter in your application code based on the message `type` field:
-- `"markets"` - Odds and betting markets
-- `"fixture"` - Match and tournament updates
-- `"scoreboard"` - Live game scores
-
-See examples for how to filter by message type in code.
+    switch (type) {
+        case "markets" -> handleMarkets(json);
+        case "fixture" -> handleFixture(json);
+        case "scoreboard" -> handleScoreboard(json);
+    }
+});
+```
 
 ---
 
-## 📊 Message Types
+## 🔄 Event Handling
 
-### Markets Message
-Odds and betting markets.
+Both examples handle disconnection and reconnection:
 
-**Actions**: `created`, `odds_changed`, `suspended`, `deactivated`, `settled`, `rollback_settlement`
+```java
+EventHandler eventHandler = new EventHandler(event -> {
+    if ("disconnection".equals(event)) {
+        System.out.println("⚠️  Disconnected - suspend markets");
+    } else if ("reconnection".equals(event)) {
+        System.out.println("✅ Reconnected - markets recovered");
+    }
+});
+```
 
-**Key fields**:
-- `markets[]` - Array of markets
-  - `template` - Market type (e.g., "winner-2-way")
-  - `status` - "active", "suspended", "deactivated"
-  - `selections[]` - Betting options
-    - `oddsDecimal`, `oddsAmerican`, `oddsFractional`
-    - `probability` - Win probability
-
-### Fixture Message
-Match and tournament information.
-
-**Actions**: `created`, `booked`, `started`, `finished`, `settled`, `canceled`
-
-**Key fields**:
-- `match` - Match details
-  - `name`, `status`, `scheduledAt`
-  - `opponents[]` - Teams/players
-  - `league`, `tournament` - Competition info
-  - `winner` - Match result (if finished)
-
-### Scoreboard Message
-Live scores and game state.
-
-**Types**: `esoccer`, `ebasketball`, `cs`, `dota2`, `lol`, `valorant`, `ehockey`
-
-**Key fields**:
-- `games[]` - Individual maps/games
-  - Game-specific scoring (kills, rounds, goals, etc.)
-  - Timer information
-  - Current period/half/quarter
+**Important**:
+- "disconnection" fires immediately when connection is lost
+- "reconnection" fires AFTER automatic recovery completes
+- Recovery fetches missed markets and match updates automatically
 
 ---
 
-## 💡 Tips
+## 🛠️ Customization Tips
 
-### Starting Fresh
-If this is your first time, start with **Example1_BasicOdds.java** - it's the simplest.
+### Filter Specific Markets
 
-### Production Use
-Use **FeedConsole.java** as a template - it includes:
-- Error handling
-- Reconnection logic
-- Comprehensive logging
-- MDC context
+```java
+if ("markets".equals(type)) {
+    MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
 
-### Filtering Markets
-Modify the filters in **Example3_SpecificMarkets.java** to track only the bet types you care about.
+    // Only process "winner" markets
+    msg.getMarkets().stream()
+        .filter(m -> "winner".equals(m.getTemplate()))
+        .forEach(market -> {
+            System.out.println("Winner market: " + market.getName());
+        });
+}
+```
 
-### HTTP vs Streaming
-- **HTTP** (Example 4): One-time queries, building initial state
-- **Streaming** (Examples 1-3, 5): Real-time updates, live monitoring
+### Enable Different Odds Formats
 
-### Performance
-- Use specific routing keys to reduce traffic
-- Filter messages in your callback to process only what you need
-- Enable `alwaysLogPayload(false)` in production to reduce log size
+```java
+SDKOptions options = SDKOptions.builder()
+    // ... other settings ...
+    .americanOdds(true)      // Enable American format (+150, -161)
+    .fractionalOdds(true)    // Enable fractional format (3/2, 8/11)
+    .build();
+```
+
+Then access via:
+```java
+selection.getOddsDecimalWithOverround()    // 2.50
+selection.getOddsAmericanWithOverround()   // +150
+selection.getOddsFractionalWithOverround() // "3/2"
+```
+
+### Track Specific Games
+
+```java
+// Only process CS:GO markets
+if ("markets".equals(type)) {
+    MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
+
+    if ("cs-go".equals(msg.getVideogameSlug())) {
+        // Process CS:GO odds
+    }
+}
+```
 
 ---
 
-## 🐛 Troubleshooting
+## 📖 Additional Resources
 
-### No messages received
-- Check routing key is correct (`#` for all messages)
-- Verify credentials are valid
-- Ensure there are active matches with markets
-
-### Connection issues
-- Verify firewall allows AMQPS (port 5671)
-- Check `feedHost` is reachable
-- Enable debug logging to see connection attempts
-
-### Parsing errors
-- Ensure Jackson dependencies are included
-- Check you're using the correct model class for message type
-- Enable payload logging to see raw JSON
+- [Main README](../../../../../README.md) - SDK overview and features
+- [QUICKSTART.md](../../../../../QUICKSTART.md) - Detailed setup guide
+- [API Documentation](https://pandaodds.readme.io/) - REST API reference
 
 ---
 
-## 📖 Next Steps
+## 💡 Need Help?
 
-1. **Choose an example** that matches your use case
-2. **Update credentials** in the example file
-3. **Run the example** using one of the methods above
-4. **Customize** the example to fit your needs
-
-For more information:
-- Check `QUICKSTART.md` for basic setup
-- Read `IMPROVEMENTS_NEEDED.md` for full data model documentation
-- Explore model classes in `src/main/java/com/pandascore/sdk/model/`
-
-## 🆘 Support
-
-Need help?
-- GitHub Issues: https://github.com/jernej19/java-sdk/issues
-- API Docs: https://developers.pandascore.co
+- Check the [API Documentation](https://pandaodds.readme.io/)
+- Review the [QUICKSTART.md](../../../../../QUICKSTART.md) guide
+- Contact PandaScore support for credential issues
