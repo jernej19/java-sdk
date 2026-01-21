@@ -99,11 +99,8 @@ feed.connect(message -> {
 ### 4. Run Example
 
 ```bash
-# Run the basic example
+# Run the example
 ./gradlew run --args="com.pandascore.sdk.examples.BasicExample"
-
-# Or run the console feed example
-./gradlew run --args="com.pandascore.sdk.examples.FeedConsole"
 ```
 
 ## 📚 Documentation
@@ -113,20 +110,18 @@ feed.connect(message -> {
 | [QUICKSTART.md](QUICKSTART.md) | Complete setup guide with code examples |
 | [API Documentation](https://pandaodds.readme.io/) | Official PandaScore API documentation |
 
-## 🎮 Examples Overview
+## 🎮 Example
 
-The SDK includes 2 production-ready examples:
+The SDK includes a comprehensive example showing all core functionality:
 
-| Example | Description |
-|---------|-------------|
-| **BasicExample** | Monitors all message types (markets, fixtures, scoreboards) with statistics |
-| **FeedConsole** | Production-ready template with full recovery and market odds display |
+**BasicExample.java** - Production-ready template that:
+- Monitors all message types (markets, fixtures, scoreboards)
+- Tracks message statistics with periodic summaries
+- Handles disconnection/reconnection events
+- Demonstrates proper JSON parsing and error handling
+- Includes RabbitMQ feed connection setup
 
-Both examples include:
-- RabbitMQ feed connection
-- Disconnection/reconnection handling
-- JSON message parsing
-- Comprehensive error handling
+See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed usage.
 
 ## ⚙️ Configuration Options
 
