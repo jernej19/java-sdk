@@ -49,8 +49,6 @@ public class SimpleOddsExample {
                     .routingKey("#")  // Subscribe to all messages
                     .build()
             )
-            .americanOdds(true)      // Optional: enable American odds
-            .fractionalOdds(false)   // Optional: enable fractional odds
             .build();
 
         SDKConfig.setOptions(options);

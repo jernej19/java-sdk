@@ -23,15 +23,6 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 - 📊 **Rich Data Models** – Complete type coverage for all message types
 - 🌐 **HTTP Client** – Fetch matches and markets on-demand
 - 📈 **Multiple Odds Formats** – Decimal, American, and Fractional
-- 🎮 **Multi-Sport Support** – CS:GO, Dota 2, LoL, Valorant, eSoccer, eBasketball, eHockey
-
-### Recent Additions (v2.0)
-- ✅ **18 new data type classes** including League, Tournament, Game, Player, and streaming types
-- ✅ **28 new fields** in FixtureMatch for complete tournament hierarchy
-- ✅ **2 new HTTP methods** (fetchMatch, fetchMarkets)
-- ✅ **eHockey support** with full scoreboard tracking
-- ✅ **Timer objects** for accurate live game timing
-- ✅ **5 production-ready examples** covering all use cases
 
 ## 📋 Requirements
 
@@ -41,11 +32,14 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 
 ## 🚀 Quick Start
 
-### 1. Clone and Build
+### 1. Extract and Build
 
 ```bash
-git clone https://github.com/jernej19/java-sdk.git
+# Extract the provided SDK package
+unzip java-sdk.zip
 cd java-sdk
+
+# Make gradlew executable and build
 chmod +x gradlew
 ./gradlew build
 ```
@@ -66,7 +60,6 @@ SDKOptions options = SDKOptions.builder()
             .routingKey("#")  // All messages
             .build()
     )
-    .americanOdds(true)      // Enable American odds
     .build();
 
 SDKConfig.setOptions(options);
@@ -103,23 +96,11 @@ feed.connect(message -> {
 });
 ```
 
-### 4. Run Examples
+### 4. Run Example
 
 ```bash
-# Basic odds display
-./gradlew run --args="com.pandascore.sdk.examples.Example1_BasicOdds"
-
-# Match/fixture updates
-./gradlew run --args="com.pandascore.sdk.examples.Example2_FixtureUpdates"
-
-# Filter specific markets
-./gradlew run --args="com.pandascore.sdk.examples.Example3_SpecificMarkets"
-
-# HTTP API usage
-./gradlew run --args="com.pandascore.sdk.examples.Example4_HTTPFetchMarkets"
-
-# Monitor all message types
-./gradlew run --args="com.pandascore.sdk.examples.Example5_AllMessageTypes"
+# Run the example
+./gradlew run --args="com.pandascore.sdk.examples.BasicExample"
 ```
 
 ## 📚 Documentation
@@ -127,24 +108,20 @@ feed.connect(message -> {
 | Document | Description |
 |----------|-------------|
 | [QUICKSTART.md](QUICKSTART.md) | Complete setup guide with code examples |
-| [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) | Detailed guide to all 5+ examples |
 | [API Documentation](https://pandaodds.readme.io/) | Official PandaScore API documentation |
 
-## 🎮 Examples Overview
+## 🎮 Example
 
-The SDK includes 5+ production-ready examples for different use cases:
+The SDK includes a comprehensive example showing all core functionality:
 
-| Example | Use Case | Key Features |
-|---------|----------|--------------|
-| **Example1_BasicOdds** | Getting started | Simple odds display, American format |
-| **Example2_FixtureUpdates** | Match tracking | Status changes, teams, tournaments |
-| **Example3_SpecificMarkets** | Market filtering | Filter by template, multiple formats |
-| **Example4_HTTPFetchMarkets** | On-demand queries | REST API, no streaming required |
-| **Example5_AllMessageTypes** | Full monitoring | All messages, statistics, comprehensive |
-| **SimpleGetOdds** | Minimal example | Copy-paste ready starter |
-| **FeedConsole** | Production template | Full-featured with recovery |
+**BasicExample.java** - Production-ready template that:
+- Monitors all message types (markets, fixtures, scoreboards)
+- Tracks message statistics with periodic summaries
+- Handles disconnection/reconnection events
+- Demonstrates proper JSON parsing and error handling
+- Includes RabbitMQ feed connection setup
 
-See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed documentation.
+See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed usage.
 
 ## ⚙️ Configuration Options
 
