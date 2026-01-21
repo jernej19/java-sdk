@@ -80,9 +80,32 @@ public class EventHandler implements AutoCloseable {
             try {
                 if (downAt != null) {
                     var recovered = MatchesClient.recoverMarkets(downAt.toString());
-                    logger.info("Recovered {} matches with markets", recovered.size());
+                    logger.info("Recovered {} matches with markets (downtime: {})",
+                        recovered.size(), downAt.toString());
+
+                    // Log details of recovered matches
+                    if (!recovered.isEmpty()) {
+                        recovered.forEach(match -> {
+                            int marketCount = match.getMarkets() != null ? match.getMarkets().size() : 0;
+                            int gameCount = match.getGames() != null ? match.getGames().size() : 0;
+                            logger.info("  - Match ID {} has {} markets across {} games",
+                                match.getId(), marketCount, gameCount);
+                        });
+                    }
+
                     var matches = MatchesClient.fetchMatchesRange(downAt.toString(), up.toString());
-                    logger.info("Recovered {} matches", matches.size());
+                    logger.info("Recovered {} modified matches", matches.size());
+
+                    // Log match IDs
+                    if (!matches.isEmpty()) {
+                        var matchIds = matches.stream()
+                            .map(m -> String.valueOf(m.getId()))
+                            .limit(10)  // Only log first 10 to avoid spam
+                            .toList();
+                        logger.info("  - Modified match IDs: {}{}",
+                            String.join(", ", matchIds),
+                            matches.size() > 10 ? " (+" + (matches.size() - 10) + " more)" : "");
+                    }
                 }
             } catch (Exception e) {
                 logger.error("Automatic recovery failed", e);
@@ -102,7 +125,7 @@ public class EventHandler implements AutoCloseable {
             disconnected = true;
             downAt = Instant.now();
             MDC.put("operation", "disconnection");
-            logger.warn("Disconnection detected");
+            logger.info("Disconnection detected");  // Changed to INFO for consistency
             sink.accept("disconnection");
             MDC.remove("operation");
         }
@@ -114,7 +137,7 @@ public class EventHandler implements AutoCloseable {
             disconnected = true;
             downAt = Instant.now();
             MDC.put("operation", "disconnection");
-            logger.warn("Missed heartbeat – marking disconnected");
+            logger.info("Missed heartbeat – marking disconnected");  // Changed to INFO for consistency
             sink.accept("disconnection");
             MDC.remove("operation");
         }
