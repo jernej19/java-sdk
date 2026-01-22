@@ -59,9 +59,9 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 **Key Features**:
 - ✅ All message types (markets, fixtures, scoreboards)
 - ✅ Event handling (disconnection/reconnection)
-- ✅ Programmatic console output (key=value format)
+- ✅ Message parsing to verify structure
 - ✅ Error handling for parsing failures
-- ✅ Real-time message display
+- ✅ INFO logs for message visibility
 
 **Sample Output**:
 ```
@@ -69,13 +69,14 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 ✓ Connected! Monitoring all message types...
 
-13:45:54.094 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=markets eventType=match eventId=1314736 action=odds_changed
-13:45:54.285 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=fixture eventType=match eventId=1329664 action=started
-13:45:54.293 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=fixture eventType=game eventId=119445 action=started
-13:45:54.299 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=scoreboard scoreboardType=csgo id=1313453
+13:45:54.094 INFO [...] Event: type=markets eventType=match eventId=1314736 action=odds_changed
+13:45:54.285 INFO [...] Event: type=fixture eventType=match eventId=1329664 action=started
+13:45:54.293 INFO [...] Event: type=fixture eventType=game eventId=119445 action=started
+13:45:54.299 INFO [...] Event: type=scoreboard scoreboardType=csgo id=1313453
 
-[11:23:45] 🔔 DISCONNECTION
-[11:24:12] 🔔 RECONNECTION
+11:23:45 INFO [...] Disconnection detected
+11:24:12 INFO [...] Heartbeat restored - starting recovery
+11:24:13 INFO [...] Recovery complete - reconnection successful
 ```
 
 ---
@@ -173,14 +174,14 @@ if ("markets".equals(type)) {
 }
 ```
 
-### 3. Enable American Odds
+### 3. Access American Odds
 
-Add to SDKOptions builder:
+American odds are computed by default (false). To enable, add to SDKOptions builder:
 ```java
-.americanOdds(true)  // Enable American format (+150, -161)
+.americanOdds(true)  // Enable American format computation (+150, -161)
 ```
 
-Then access in your handler:
+Access odds in your handler:
 ```java
 market.getSelections().forEach(sel -> {
     System.out.printf("%s: Decimal %.2f | American %s%n",
