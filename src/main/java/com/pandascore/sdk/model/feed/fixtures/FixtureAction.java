@@ -9,5 +9,8 @@ public enum FixtureAction {
     settled, coverage_changed, canceled, deleted,
     /** @deprecated Legacy action still sent for backward compatibility */
     @Deprecated
-    live_available
+    live_available,
+    /** @deprecated Legacy action still sent for backward compatibility */
+    @Deprecated
+    live_not_available
 }
