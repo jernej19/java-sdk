@@ -175,65 +175,31 @@ public class FetchMatch {
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `apiToken` | String | **Required** | REST API authentication token |
-| `companyId` | long | **Required** | Your PandaScore account ID |
-| `email` | String | **Required** | Your account email |
-| `password` | String | **Required** | Your account password |
-| `feedHost` | String | `trading-feed.pandascore.co` | RabbitMQ feed hostname |
-| `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | REST API base URL |
-| `queueBindings` | List | **Required** | Queue declarations (at least one) |
-| `americanOdds` | boolean | `false` | Compute American odds format |
-| `fractionalOdds` | boolean | `false` | Compute fractional odds format |
-| `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection |
-| `alwaysLogPayload` | boolean | `false` | Log all payloads at INFO level |
+See [README.md](README.md#configuration-options) for all available configuration options.
 
 ## Routing Keys
 
-Subscribe to specific message types using routing keys:
+Use `#` to subscribe to all messages (recommended):
 
-- `#` - All messages
-- `pandascore.markets.#` - All market updates
-- `pandascore.fixtures.#` - All fixture updates
-- `pandascore.markets.*.*.created` - Only market creation events
-- `pandascore.fixtures.*.*.updated` - Only fixture update events
-
-Example:
 ```java
 .queueBinding(
     SDKOptions.QueueBinding.builder()
-        .queueName("my-markets-queue")
-        .routingKey("pandascore.markets.#")  // Only markets
+        .queueName("my-queue")
+        .routingKey("#")  // All messages
         .build()
 )
 ```
 
+See [README.md](README.md#queue-bindings) for routing key format details.
+
 ## Message Types
 
-### Markets Message
-Contains odds and selections for markets.
+The SDK supports three message types:
+- **Markets** - Odds and betting markets (`type: "markets"`)
+- **Fixtures** - Match and tournament updates (`type: "fixture"`)
+- **Scoreboards** - Live scores and game state (`type: "scoreboard"`)
 
-**Fields:**
-- `type`: "markets"
-- `action`: "created", "odds_changed", "suspended", "settled", etc.
-- `matchId`: Match ID
-- `markets`: List of market objects
-  - `id`, `name`, `status`, `template`
-  - `selections`: List of selections
-    - `name`, `oddsDecimal`, `oddsDecimalWithOverround`
-    - `probability`, `probabilityWithOverround`
-
-### Fixture Message
-Contains match/fixture information.
-
-**Fields:**
-- `type`: "fixture"
-- `action`: "created", "started", "finished", "settled", etc.
-- `match`: Full match object
-  - `id`, `name`, `status`, `scheduledAt`
-  - `league`, `tournament`, `serie`
-  - `opponents`, `games`, `results`
+See [README.md](README.md#data-models) for complete data model documentation.
 
 ## Running the Built-in Example
 
@@ -241,37 +207,20 @@ Contains match/fixture information.
 # Build the project
 ./gradlew build
 
-# Run the example
+# Run BasicExample
 ./gradlew run
 
 # Or run directly
-java -cp build/libs/sdk.jar com.pandascore.sdk.examples.FeedConsole
+java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 ```
 
 ## Troubleshooting
 
-### Connection Issues
-- Verify credentials are correct
-- Check firewall allows AMQPS (port 5671)
-- Ensure `feedHost` is reachable
-
-### No Messages Received
-- Verify routing key is correct (`#` for all messages)
-- Check queue name doesn't conflict with existing queues
-- Ensure there are active matches with markets
-
-### Parsing Errors
-- Make sure Jackson dependencies are included
-- Enable debug logging to see raw JSON
+See [README.md](README.md#troubleshooting) for troubleshooting tips.
 
 ## Next Steps
 
-- Check out `/src/main/java/com/pandascore/sdk/examples/FeedConsole.java` for a complete example
-- Read `IMPROVEMENTS_NEEDED.md` for full data model documentation
-- Explore all model classes in `src/main/java/com/pandascore/sdk/model/`
-
-## Support
-
-For issues or questions:
-- GitHub Issues: https://github.com/jernej19/java-sdk/issues
-- API Documentation: https://developers.pandascore.co
+- Check out `src/main/java/com/pandascore/sdk/examples/BasicExample.java` for a complete example
+- Read the main [README.md](README.md) for comprehensive documentation
+- Explore model classes in `src/main/java/com/pandascore/sdk/model/`
+- Visit [API Documentation](https://pandaodds.readme.io/) for REST API reference

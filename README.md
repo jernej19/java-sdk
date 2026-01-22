@@ -11,7 +11,6 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 
 - **Real-time odds updates** via AMQPS feed
 - **Automatic reconnection** with smart recovery
-- **Comprehensive data models** for 7+ esports titles
 - **HTTP API** for on-demand queries
 - **Production-ready** with extensive logging and error handling
 
@@ -36,8 +35,8 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 
 ```bash
 # Extract the provided SDK package
-unzip java-sdk.zip
-cd java-sdk
+unzip pandascore-sdk-java.zip
+cd pandascore-sdk-java
 
 # Make gradlew executable and build
 chmod +x gradlew
@@ -85,10 +84,9 @@ feed.connect(message -> {
         markets.getMarkets().forEach(market -> {
             System.out.println("Market: " + market.getName());
             market.getSelections().forEach(sel -> {
-                System.out.printf("  %s: %.2f (%s)%n",
+                System.out.printf("  %s: %.2f%n",
                     sel.getName(),
-                    sel.getOddsDecimalWithOverround(),
-                    formatAmerican(sel.getOddsAmericanWithOverround())
+                    sel.getOddsDecimalWithOverround()
                 );
             });
         });
@@ -155,15 +153,18 @@ Control which messages you receive using routing keys:
 .queueBinding(
     SDKOptions.QueueBinding.builder()
         .queueName("my-queue")
-        .routingKey("#")  // Pattern
+        .routingKey("#")  // All messages
         .build()
 )
 ```
 
-**Common routing key patterns:**
-- `#` - All messages (recommended - filter in your code as needed)
+**Routing Key Format:**
 
-> **Note**: To filter for specific message types (markets, fixtures, scoreboards), use the `#` routing key and filter messages in your application code based on the `type` field.
+Messages use the format: `{version}.{videogame_slug}.{event_type}.{event_id}.{type}.{action}`
+
+**Recommendation:**
+- Use `#` to receive all messages and filter in your application code based on the `type` field
+- This provides maximum flexibility and ensures you don't miss any updates
 
 ## 🔌 API Reference
 
