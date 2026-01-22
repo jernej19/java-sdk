@@ -6,5 +6,8 @@ package com.pandascore.sdk.model.feed.fixtures;
 public enum FixtureAction {
     created, booked, unbooked, reviewed, updated,
     rescheduled, postponed, started, finished,
-    settled, coverage_changed, canceled, deleted
+    settled, coverage_changed, canceled, deleted,
+    /** @deprecated Legacy action still sent for backward compatibility */
+    @Deprecated
+    live_available
 }
