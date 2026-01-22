@@ -116,10 +116,10 @@ The SDK includes a comprehensive example showing all core functionality:
 
 **BasicExample.java** - Production-ready template that:
 - Monitors all message types (markets, fixtures, scoreboards)
-- Tracks message statistics with periodic summaries
 - Handles disconnection/reconnection events
 - Demonstrates proper JSON parsing and error handling
 - Includes RabbitMQ feed connection setup
+- Relies on INFO logs for message visibility
 
 See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed usage.
 
@@ -225,61 +225,6 @@ The SDK includes comprehensive data models for all message types:
 - `ScoreboardCs`, `ScoreboardDota2`, `ScoreboardLol`, `ScoreboardValorant`
 - Timer objects with pause state and period tracking
 
-## 🎯 Common Use Cases
-
-### 1. Live Odds Display
-
-```java
-feed.connect(message -> {
-    if (isMarkets(message)) {
-        MarketsMessage markets = parse(message);
-        displayOdds(markets);
-    }
-});
-```
-
-See: [Example1_BasicOdds.java](src/main/java/com/pandascore/sdk/examples/Example1_BasicOdds.java)
-
-### 2. Match Status Tracking
-
-```java
-feed.connect(message -> {
-    if (isFixture(message)) {
-        FixtureMessage fixture = parse(message);
-        if ("started".equals(fixture.getAction())) {
-            handleMatchStart(fixture.getMatch());
-        }
-    }
-});
-```
-
-See: [Example2_FixtureUpdates.java](src/main/java/com/pandascore/sdk/examples/Example2_FixtureUpdates.java)
-
-### 3. Specific Market Types
-
-```java
-List<String> wantedMarkets = List.of("winner-2-way", "correct-score");
-
-markets.getMarkets().stream()
-    .filter(m -> wantedMarkets.contains(m.getTemplate()))
-    .forEach(this::processMarket);
-```
-
-See: [Example3_SpecificMarkets.java](src/main/java/com/pandascore/sdk/examples/Example3_SpecificMarkets.java)
-
-### 4. Initial Data Snapshot
-
-```java
-// Fetch current state before streaming
-FixtureMatch match = MatchesClient.fetchMatch(matchId);
-List<MarketsMessageMarket> markets = MatchesClient.fetchMarkets(matchId);
-
-// Then start streaming for updates
-feed.connect(this::handleUpdates);
-```
-
-See: [Example4_HTTPFetchMarkets.java](src/main/java/com/pandascore/sdk/examples/Example4_HTTPFetchMarkets.java)
-
 ## 🔄 Automatic Recovery & Disconnection Handling
 
 The SDK automatically handles disconnections with a clear flow to help you manage market states:
@@ -307,16 +252,19 @@ EventHandler handler = new EventHandler(event -> {
 
 **When heartbeat is restored**:
 1. 🔄 SDK logs: "Heartbeat restored - starting recovery"
-2. 📊 SDK calls `recoverMarkets(downtime)` to fetch updated markets
-3. 📋 SDK calls `fetchMatchesRange(downtime, uptime)` to fetch modified matches
-4. ✅ SDK logs: "Recovery complete - reconnection successful"
-5. ✅ **"reconnection" event fired** → Your callback is notified
-6. 👉 **Action required**: Reopen/resume markets - data is now synchronized
+2. 📦 SDK begins buffering incoming messages (continues consuming from RabbitMQ)
+3. 📊 SDK calls `recoverMarkets(downtime)` to fetch updated markets
+4. 📋 SDK calls `fetchMatchesRange(downtime, uptime)` to fetch modified matches
+5. 📤 SDK processes all buffered messages (in order)
+6. ✅ SDK logs: "Recovery complete - reconnection successful"
+7. ✅ **"reconnection" event fired** → Your callback is notified
+8. 👉 **Action required**: Reopen/resume markets - data is now synchronized
 
 ### Important Notes
 
 - **Customer callback timing**: You receive "disconnection" immediately, but "reconnection" **only after recovery completes**
-- This ensures you have fresh data before reopening markets
+- **Message buffering**: During recovery, incoming messages are buffered internally to prevent race conditions
+- This ensures you have fresh data before reopening markets, with proper message ordering
 - Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually
 
 ### Example Log Output
