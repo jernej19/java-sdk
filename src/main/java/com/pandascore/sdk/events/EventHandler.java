@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import com.pandascore.sdk.http.MatchesClient;
+import com.pandascore.sdk.rmq.RabbitMQFeed;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -38,6 +39,8 @@ public class EventHandler implements AutoCloseable {
     private volatile boolean disconnected;
     // Timestamp when disconnection was detected
     private volatile Instant downAt;
+    // RabbitMQ feed reference (for controlling message buffering during recovery)
+    private volatile RabbitMQFeed feed;
 
     /**
      * @param sink Consumer notified on "disconnection" or "reconnection" events
@@ -68,6 +71,16 @@ public class EventHandler implements AutoCloseable {
     }
 
     /**
+     * Sets the RabbitMQ feed reference for controlling message buffering during recovery.
+     * Must be called after construction to enable recovery mode.
+     *
+     * @param feed the RabbitMQFeed instance
+     */
+    public void setFeed(RabbitMQFeed feed) {
+        this.feed = feed;
+    }
+
+    /**
      * Call when a heartbeat or health check is received to reset the timer.
      * If previously disconnected, initiates recovery process before notifying application.
      */
@@ -78,6 +91,12 @@ public class EventHandler implements AutoCloseable {
             Instant up = lastBeat;
             MDC.put("operation", "reconnect");
             logger.info("Heartbeat restored - starting recovery");
+
+            // Start buffering messages during recovery
+            if (feed != null) {
+                feed.startRecovery();
+            }
+
             try {
                 if (downAt != null) {
                     MatchesClient.recoverMarkets(downAt.toString());
@@ -89,7 +108,13 @@ public class EventHandler implements AutoCloseable {
             } finally {
                 downAt = null;
             }
-            // Notify application AFTER recovery is complete
+
+            // End recovery: process buffered messages then resume normal operation
+            if (feed != null) {
+                feed.endRecovery();
+            }
+
+            // Notify application AFTER recovery is complete AND buffered messages are processed
             sink.accept("reconnection");
             MDC.remove("operation");
         }

@@ -37,7 +37,11 @@ public final class MatchesClient {
     private static final ObjectMapper mapper = new ObjectMapper()
         .setSerializationInclusion(JsonInclude.Include.NON_NULL)
         .registerModule(new JavaTimeModule());
-    private static final OkHttpClient HTTP = new OkHttpClient();
+    private static final OkHttpClient HTTP = new OkHttpClient.Builder()
+        .connectTimeout(Duration.ofSeconds(30))
+        .readTimeout(Duration.ofSeconds(60))
+        .writeTimeout(Duration.ofSeconds(30))
+        .build();
 
     // Prevent instantiation
     private MatchesClient() {}
