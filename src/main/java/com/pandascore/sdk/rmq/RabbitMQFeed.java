@@ -23,6 +23,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +54,13 @@ public final class RabbitMQFeed implements AutoCloseable {
     });
     private int attempt = 1;
 
+    // Recovery state: when true, buffer messages instead of processing them
+    private volatile boolean recovering = false;
+    // Buffer for messages received during recovery
+    private final Queue<JsonNode> recoveryBuffer = new ConcurrentLinkedQueue<>();
+    // Customer sink reference (needed for processing buffered messages)
+    private volatile Consumer<Object> customerSink;
+
     /**
      * Constructs a new RabbitMQFeed with the given EventHandler.
      *
@@ -68,6 +77,11 @@ public final class RabbitMQFeed implements AutoCloseable {
      * @param sink consumer to process each incoming JSON event
      */
     public void connect(Consumer<Object> sink) {
+        this.customerSink = sink;  // Store reference for buffer processing
+
+        // Wire up feed reference to handler for recovery control
+        handler.setFeed(this);
+
         // Preserve tracing context
         MDC.put("session", MDC.get("session"));
         MDC.put("customerId", String.valueOf(opts.getCompanyId()));
@@ -176,26 +190,36 @@ public final class RabbitMQFeed implements AutoCloseable {
                 String eventId   = parts[parts.length - 3];
                 String action    = parts[parts.length - 1];
 
-                logger.info("Event: type={} eventType={} eventId={} action={}",
-                    type, eventType, eventId, action
-                );
-                if (alwaysLogPayload) {
-                    logger.info("Payload for eventType={} eventId={}: {}",
-                        eventType, eventId, json.toString()
-                    );
-                } else {
-                    logger.debug("Payload for eventType={} eventId={}: {}",
-                        eventType, eventId, json.toString()
-                    );
-                }
-
-                try {
-                    sink.accept(json);
+                // Check if we're in recovery mode
+                if (recovering) {
+                    // Buffer message for later processing
+                    recoveryBuffer.add(json);
+                    logger.debug("Buffered message during recovery: type={} eventType={} eventId={} action={}",
+                        type, eventType, eventId, action);
                     chan.basicAck(msg.getEnvelope().getDeliveryTag(), false);
-                } catch (Exception e) {
-                    logger.error("Error processing eventId={} action={}",
-                        eventId, action, e);
-                    chan.basicNack(msg.getEnvelope().getDeliveryTag(), false, true);
+                } else {
+                    // Normal processing
+                    logger.info("Event: type={} eventType={} eventId={} action={}",
+                        type, eventType, eventId, action
+                    );
+                    if (alwaysLogPayload) {
+                        logger.info("Payload for eventType={} eventId={}: {}",
+                            eventType, eventId, json.toString()
+                        );
+                    } else {
+                        logger.debug("Payload for eventType={} eventId={}: {}",
+                            eventType, eventId, json.toString()
+                        );
+                    }
+
+                    try {
+                        sink.accept(json);
+                        chan.basicAck(msg.getEnvelope().getDeliveryTag(), false);
+                    } catch (Exception e) {
+                        logger.error("Error processing eventId={} action={}",
+                            eventId, action, e);
+                        chan.basicNack(msg.getEnvelope().getDeliveryTag(), false, true);
+                    }
                 }
             }
             MDC.remove("routingKey");
@@ -230,6 +254,41 @@ public final class RabbitMQFeed implements AutoCloseable {
             connect(sink);
         }, delay, TimeUnit.SECONDS);
         MDC.remove("operation");
+    }
+
+    /**
+     * Starts recovery mode: buffers incoming messages instead of processing them.
+     * Called by EventHandler when recovery begins.
+     */
+    public void startRecovery() {
+        recovering = true;
+        recoveryBuffer.clear();  // Clear any stale buffered messages
+        logger.info("Recovery mode started - buffering messages");
+    }
+
+    /**
+     * Ends recovery mode: processes buffered messages then resumes normal operation.
+     * Called by EventHandler when recovery completes.
+     */
+    public void endRecovery() {
+        logger.info("Recovery mode ending - processing {} buffered messages", recoveryBuffer.size());
+
+        // Process all buffered messages
+        JsonNode bufferedMessage;
+        int processed = 0;
+        while ((bufferedMessage = recoveryBuffer.poll()) != null) {
+            try {
+                if (customerSink != null) {
+                    customerSink.accept(bufferedMessage);
+                    processed++;
+                }
+            } catch (Exception e) {
+                logger.error("Error processing buffered message", e);
+            }
+        }
+
+        logger.info("Processed {} buffered messages - resuming normal operation", processed);
+        recovering = false;
     }
 
     /**
