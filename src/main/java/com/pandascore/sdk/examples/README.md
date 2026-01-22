@@ -8,7 +8,6 @@ Production-ready example demonstrating real-time esports odds integration.
 - Markets (odds updates)
 - Fixtures (match updates)
 - Scoreboards (live scores)
-- Message statistics tracking
 - Disconnection/reconnection handling
 
 ---
@@ -53,24 +52,22 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 **What it does**:
 - Monitors markets, fixtures, and scoreboard messages
-- Tracks message statistics (counts by type)
-- Prints statistics every 10 seconds
 - Handles disconnection/reconnection events
 - Demonstrates proper message parsing
+- Displays real-time updates for all message types
 
 **Key Features**:
 - ✅ All message types (markets, fixtures, scoreboards)
-- ✅ Statistics tracking with periodic summaries
 - ✅ Event handling (disconnection/reconnection)
 - ✅ Clean console output with emojis
 - ✅ Error handling for parsing failures
+- ✅ Real-time message display
 
 **Sample Output**:
 ```
 === PandaScore SDK Basic Example ===
 
 ✓ Connected! Monitoring all message types...
-  Stats will be printed every 10 seconds.
 
 📊 MARKETS - Match #1313453
    Action: odds_changed
@@ -89,16 +86,6 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
    Type: csgo
    ID: 1313453
    Games: 3
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 MESSAGE STATISTICS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   Markets:          127
-   Fixtures:          23
-   Scoreboards:       45
-   Other:              0
-   TOTAL:            195
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [11:23:45] 🔔 DISCONNECTION
 [11:24:12] 🔔 RECONNECTION
