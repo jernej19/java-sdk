@@ -16,10 +16,11 @@ import java.time.format.DateTimeFormatter;
 /**
  * Basic Example: All Message Types
  *
- * Comprehensive example showing all message types:
+ * Comprehensive example showing all message types with programmatic output:
  * - Markets (odds updates)
  * - Fixtures (match updates)
  * - Scoreboards (live scores)
+ * - Disconnection/reconnection events
  */
 public class BasicExample {
 
@@ -77,53 +78,50 @@ public class BasicExample {
     private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {
         MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
 
-        System.out.println("\n📊 MARKETS - Match #" + msg.getMatchId());
-        System.out.println("   Action: " + msg.getAction());
-        System.out.println("   Markets: " + msg.getMarkets().size());
-        System.out.println("   Game: " + msg.getVideogameSlug());
-
-        // Show first market name
-        if (!msg.getMarkets().isEmpty()) {
-            System.out.println("   First: " + msg.getMarkets().get(0).getName());
-        }
+        System.out.printf("MARKETS: matchId=%s action=%s markets=%d game=%s%n",
+            msg.getMatchId() != null ? msg.getMatchId() : "N/A",
+            msg.getAction(),
+            msg.getMarkets().size(),
+            msg.getVideogameSlug()
+        );
     }
 
     private static void handleFixture(JsonNode json, ObjectMapper mapper) throws Exception {
         FixtureMessage msg = mapper.treeToValue(json, FixtureMessage.class);
 
-        System.out.println("\n🎮 FIXTURE - " + msg.getAction().toString().toUpperCase());
+        // Determine Match ID based on event type
+        Long matchId = "match".equals(msg.getEventType()) ? msg.getEventId() : msg.getMatchId();
 
-        // Display Match ID based on event type
-        if ("match".equals(msg.getEventType())) {
-            // For match events, the match ID is in eventId
-            System.out.println("   Match ID: " + msg.getEventId());
-        } else {
-            // For other event types (like game), use matchId
-            System.out.println("   Match ID: " + msg.getMatchId());
-        }
+        String name = msg.getMatch() != null ? msg.getMatch().getName() : "N/A";
+        String status = msg.getMatch() != null ? msg.getMatch().getStatus() : "N/A";
 
-        System.out.println("   Event Type: " + msg.getEventType());
-
-        // If event type is game, also show Game ID
         if ("game".equals(msg.getEventType())) {
-            System.out.println("   Game ID: " + msg.getEventId());
-        }
-
-        System.out.println("   Game: " + msg.getVideogameSlug());
-
-        if (msg.getMatch() != null) {
-            System.out.println("   Name: " + msg.getMatch().getName());
-            System.out.println("   Status: " + msg.getMatch().getStatus());
+            System.out.printf("FIXTURE: matchId=%s eventType=%s gameId=%s action=%s game=%s name=\"%s\" status=%s%n",
+                matchId,
+                msg.getEventType(),
+                msg.getEventId(),
+                msg.getAction(),
+                msg.getVideogameSlug(),
+                name,
+                status
+            );
+        } else {
+            System.out.printf("FIXTURE: matchId=%s eventType=%s action=%s game=%s name=\"%s\" status=%s%n",
+                matchId,
+                msg.getEventType(),
+                msg.getAction(),
+                msg.getVideogameSlug(),
+                name,
+                status
+            );
         }
     }
 
     private static void handleScoreboard(JsonNode json) {
-        System.out.println("\n🏆 SCOREBOARD");
-        System.out.println("   Type: " + json.get("scoreboard_type").asText());
-        System.out.println("   ID: " + json.get("id").asText());
+        String type = json.get("scoreboard_type").asText();
+        String id = json.get("id").asText();
+        int games = json.has("games") ? json.get("games").size() : 0;
 
-        if (json.has("games")) {
-            System.out.println("   Games: " + json.get("games").size());
-        }
+        System.out.printf("SCOREBOARD: type=%s id=%s games=%d%n", type, id, games);
     }
 }

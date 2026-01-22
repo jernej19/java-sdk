@@ -59,7 +59,7 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 **Key Features**:
 - ✅ All message types (markets, fixtures, scoreboards)
 - ✅ Event handling (disconnection/reconnection)
-- ✅ Clean console output with emojis
+- ✅ Programmatic console output (key=value format)
 - ✅ Error handling for parsing failures
 - ✅ Real-time message display
 
@@ -69,23 +69,10 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 ✓ Connected! Monitoring all message types...
 
-📊 MARKETS - Match #1313453
-   Action: odds_changed
-   Markets: 12
-   Game: cs-go
-   First: Winner 2-Way
-
-🎮 FIXTURE - STARTED
-   Match ID: 1313453
-   Event Type: match
-   Game: cs-go
-   Name: Team A vs Team B
-   Status: live
-
-🏆 SCOREBOARD
-   Type: csgo
-   ID: 1313453
-   Games: 3
+MARKETS: matchId=1313453 action=odds_changed markets=12 game=cs-go
+FIXTURE: matchId=1313453 eventType=match action=started game=cs-go name="Team A vs Team B" status=live
+FIXTURE: matchId=1313453 eventType=game gameId=119445 action=started game=cs-go name="Team A vs Team B" status=live
+SCOREBOARD: type=csgo id=1313453 games=3
 
 [11:23:45] 🔔 DISCONNECTION
 [11:24:12] 🔔 RECONNECTION
