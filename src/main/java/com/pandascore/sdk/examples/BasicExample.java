@@ -102,7 +102,7 @@ public class BasicExample {
             System.out.println("   Match ID: " + msg.getMatchId());
         }
 
-        System.out.println("   Event Type: " + msg.getEventType() + " #" + msg.getEventId());
+        System.out.println("   Event Type: " + msg.getEventType());
 
         // If event type is game, also show Game ID
         if ("game".equals(msg.getEventType())) {
