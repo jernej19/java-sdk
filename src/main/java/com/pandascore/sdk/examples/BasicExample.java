@@ -78,8 +78,11 @@ public class BasicExample {
     private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {
         MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
 
-        System.out.printf("MARKETS: matchId=%s action=%s markets=%d game=%s%n",
-            msg.getMatchId() != null ? msg.getMatchId() : "N/A",
+        // Determine Match ID based on event type
+        Long matchId = "match".equals(msg.getEventType()) ? msg.getEventId() : msg.getMatchId();
+
+        System.out.printf("matchId=%s action=%s markets=%d game=%s%n",
+            matchId != null ? matchId : "N/A",
             msg.getAction(),
             msg.getMarkets().size(),
             msg.getVideogameSlug()
@@ -96,7 +99,7 @@ public class BasicExample {
         String status = msg.getMatch() != null ? msg.getMatch().getStatus() : "N/A";
 
         if ("game".equals(msg.getEventType())) {
-            System.out.printf("FIXTURE: matchId=%s eventType=%s gameId=%s action=%s game=%s name=\"%s\" status=%s%n",
+            System.out.printf("matchId=%s eventType=%s gameId=%s action=%s game=%s name=\"%s\" status=%s%n",
                 matchId,
                 msg.getEventType(),
                 msg.getEventId(),
@@ -106,7 +109,7 @@ public class BasicExample {
                 status
             );
         } else {
-            System.out.printf("FIXTURE: matchId=%s eventType=%s action=%s game=%s name=\"%s\" status=%s%n",
+            System.out.printf("matchId=%s eventType=%s action=%s game=%s name=\"%s\" status=%s%n",
                 matchId,
                 msg.getEventType(),
                 msg.getAction(),
@@ -122,6 +125,6 @@ public class BasicExample {
         String id = json.get("id").asText();
         int games = json.has("games") ? json.get("games").size() : 0;
 
-        System.out.printf("SCOREBOARD: type=%s id=%s games=%d%n", type, id, games);
+        System.out.printf("type=%s id=%s games=%d%n", type, id, games);
     }
 }

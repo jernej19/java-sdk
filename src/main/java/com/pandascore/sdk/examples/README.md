@@ -69,10 +69,10 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 ✓ Connected! Monitoring all message types...
 
-MARKETS: matchId=1313453 action=odds_changed markets=12 game=cs-go
-FIXTURE: matchId=1313453 eventType=match action=started game=cs-go name="Team A vs Team B" status=live
-FIXTURE: matchId=1313453 eventType=game gameId=119445 action=started game=cs-go name="Team A vs Team B" status=live
-SCOREBOARD: type=csgo id=1313453 games=3
+matchId=1313453 action=odds_changed markets=12 game=cs-go
+matchId=1313453 eventType=match action=started game=cs-go name="Team A vs Team B" status=live
+matchId=1313453 eventType=game gameId=119445 action=started game=cs-go name="Team A vs Team B" status=live
+type=csgo id=1313453 games=3
 
 [11:23:45] 🔔 DISCONNECTION
 [11:24:12] 🔔 RECONNECTION
