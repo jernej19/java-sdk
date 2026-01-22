@@ -92,8 +92,23 @@ public class BasicExample {
         FixtureMessage msg = mapper.treeToValue(json, FixtureMessage.class);
 
         System.out.println("\n🎮 FIXTURE - " + msg.getAction().toString().toUpperCase());
-        System.out.println("   Match ID: " + msg.getMatchId());
-        System.out.println("   Event: " + msg.getEventType() + " #" + msg.getEventId());
+
+        // Display Match ID based on event type
+        if ("match".equals(msg.getEventType())) {
+            // For match events, the match ID is in eventId
+            System.out.println("   Match ID: " + msg.getEventId());
+        } else {
+            // For other event types (like game), use matchId
+            System.out.println("   Match ID: " + msg.getMatchId());
+        }
+
+        System.out.println("   Event Type: " + msg.getEventType());
+
+        // If event type is game, also show Game ID
+        if ("game".equals(msg.getEventType())) {
+            System.out.println("   Game ID: " + msg.getEventId());
+        }
+
         System.out.println("   Game: " + msg.getVideogameSlug());
 
         if (msg.getMatch() != null) {
