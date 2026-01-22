@@ -78,53 +78,27 @@ public class BasicExample {
     private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {
         MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
 
-        // Determine Match ID based on event type
-        Long matchId = "match".equals(msg.getEventType()) ? msg.getEventId() : msg.getMatchId();
-
-        System.out.printf("matchId=%s action=%s markets=%d game=%s%n",
-            matchId != null ? matchId : "N/A",
-            msg.getAction(),
-            msg.getMarkets().size(),
-            msg.getVideogameSlug()
+        System.out.printf("type=markets eventType=%s eventId=%s action=%s%n",
+            msg.getEventType(),
+            msg.getEventId(),
+            msg.getAction()
         );
     }
 
     private static void handleFixture(JsonNode json, ObjectMapper mapper) throws Exception {
         FixtureMessage msg = mapper.treeToValue(json, FixtureMessage.class);
 
-        // Determine Match ID based on event type
-        Long matchId = "match".equals(msg.getEventType()) ? msg.getEventId() : msg.getMatchId();
-
-        String name = msg.getMatch() != null ? msg.getMatch().getName() : "N/A";
-        String status = msg.getMatch() != null ? msg.getMatch().getStatus() : "N/A";
-
-        if ("game".equals(msg.getEventType())) {
-            System.out.printf("matchId=%s eventType=%s gameId=%s action=%s game=%s name=\"%s\" status=%s%n",
-                matchId,
-                msg.getEventType(),
-                msg.getEventId(),
-                msg.getAction(),
-                msg.getVideogameSlug(),
-                name,
-                status
-            );
-        } else {
-            System.out.printf("matchId=%s eventType=%s action=%s game=%s name=\"%s\" status=%s%n",
-                matchId,
-                msg.getEventType(),
-                msg.getAction(),
-                msg.getVideogameSlug(),
-                name,
-                status
-            );
-        }
+        System.out.printf("type=fixture eventType=%s eventId=%s action=%s%n",
+            msg.getEventType(),
+            msg.getEventId(),
+            msg.getAction()
+        );
     }
 
     private static void handleScoreboard(JsonNode json) {
-        String type = json.get("scoreboard_type").asText();
+        String scoreboardType = json.get("scoreboard_type").asText();
         String id = json.get("id").asText();
-        int games = json.has("games") ? json.get("games").size() : 0;
 
-        System.out.printf("type=%s id=%s games=%d%n", type, id, games);
+        System.out.printf("type=scoreboard scoreboardType=%s id=%s%n", scoreboardType, id);
     }
 }
