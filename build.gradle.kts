@@ -22,7 +22,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("com.pandascore.sdk.examples.FeedConsole")
+    mainClass.set("com.pandascore.sdk.examples.BasicExample")
 }
 
 tasks.test {
