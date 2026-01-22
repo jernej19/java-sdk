@@ -77,7 +77,7 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 🎮 FIXTURE - STARTED
    Match ID: 1313453
-   Event: match #12345
+   Event Type: match #12345
    Game: cs-go
    Name: Team A vs Team B
    Status: live
