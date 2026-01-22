@@ -69,10 +69,10 @@ java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
 
 ✓ Connected! Monitoring all message types...
 
-type=markets eventType=match eventId=1314736 action=odds_changed
-type=fixture eventType=match eventId=1329664 action=started
-type=fixture eventType=game eventId=119445 action=started
-type=scoreboard scoreboardType=csgo id=1313453
+13:45:54.094 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=markets eventType=match eventId=1314736 action=odds_changed
+13:45:54.285 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=fixture eventType=match eventId=1329664 action=started
+13:45:54.293 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=fixture eventType=game eventId=119445 action=started
+13:45:54.299 INFO [...] com.pandascore.sdk.rmq.RabbitMQFeed – Event: type=scoreboard scoreboardType=csgo id=1313453
 
 [11:23:45] 🔔 DISCONNECTION
 [11:24:12] 🔔 RECONNECTION

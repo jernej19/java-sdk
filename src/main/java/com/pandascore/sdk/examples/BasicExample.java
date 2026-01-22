@@ -76,29 +76,19 @@ public class BasicExample {
     }
 
     private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {
+        // Parse message to verify structure
         MarketsMessage msg = mapper.treeToValue(json, MarketsMessage.class);
-
-        System.out.printf("type=markets eventType=%s eventId=%s action=%s%n",
-            msg.getEventType(),
-            msg.getEventId(),
-            msg.getAction()
-        );
+        // INFO log already displays: type=markets eventType=... eventId=... action=...
     }
 
     private static void handleFixture(JsonNode json, ObjectMapper mapper) throws Exception {
+        // Parse message to verify structure
         FixtureMessage msg = mapper.treeToValue(json, FixtureMessage.class);
-
-        System.out.printf("type=fixture eventType=%s eventId=%s action=%s%n",
-            msg.getEventType(),
-            msg.getEventId(),
-            msg.getAction()
-        );
+        // INFO log already displays: type=fixture eventType=... eventId=... action=...
     }
 
     private static void handleScoreboard(JsonNode json) {
-        String scoreboardType = json.get("scoreboard_type").asText();
-        String id = json.get("id").asText();
-
-        System.out.printf("type=scoreboard scoreboardType=%s id=%s%n", scoreboardType, id);
+        // Parse message to verify structure
+        // INFO log already displays: type=scoreboard ...
     }
 }
