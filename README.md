@@ -373,12 +373,6 @@ sh gradlew build
 
 Copyright © 2026 PandaScore. All rights reserved.
 
-## 🆘 Support
-
-- **Issues**: https://github.com/jernej19/java-sdk/issues
-- **Documentation**: See files listed above
-- **Email**: support@pandascore.co
-
 ---
 
 **Ready to get started?** Check out [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide!
