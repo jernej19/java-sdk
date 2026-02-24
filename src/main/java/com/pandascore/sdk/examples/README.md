@@ -121,18 +121,27 @@ feed.connect(message -> {
 
 ## 🔄 Event Handling
 
-The example demonstrates proper disconnection/reconnection handling:
+The example demonstrates proper disconnection/reconnection handling using `ConnectionEvent`:
 
 ```java
 EventHandler eventHandler = new EventHandler(event -> {
     String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-    System.out.println("[" + time + "] 🔔 " + event.toUpperCase());
+    if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
+        System.out.println("[" + time + "] DISCONNECTION (code " + event.getCode() + ")");
+    } else {
+        System.out.println("[" + time + "] RECONNECTION (code " + event.getCode() + ")");
+        if (event.getRecoveryData() != null) {
+            System.out.println("  Recovered " + event.getRecoveryData().getMarkets().size()
+                + " markets, " + event.getRecoveryData().getMatches().size() + " matches");
+        }
+    }
 });
 ```
 
 **Important**:
-- **"disconnection"** fires immediately when connection is lost → Suspend markets
-- **"reconnection"** fires AFTER automatic recovery completes → Reopen markets
+- **Code 100 (disconnection)** fires immediately when 3 heartbeats are missed (~30s) → Suspend markets
+- **Code 101 (reconnection)** fires AFTER automatic recovery completes → Reopen markets
+- Recovery data (markets + matches) is included in the reconnection event
 - Recovery automatically fetches missed markets and match updates
 
 ---
