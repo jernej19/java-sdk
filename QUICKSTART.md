@@ -27,6 +27,7 @@ Or `pom.xml`:
 ```java
 import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.config.SDKOptions;
+import com.pandascore.sdk.events.ConnectionEvent;
 import com.pandascore.sdk.events.EventHandler;
 import com.pandascore.sdk.rmq.RabbitMQFeed;
 import com.pandascore.sdk.model.feed.markets.MarketsMessage;
@@ -55,7 +56,12 @@ public class SimpleOddsExample {
 
         // 2. Create event handler (for disconnection/reconnection)
         EventHandler eventHandler = new EventHandler(event -> {
-            System.out.println("Event: " + event);
+            if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
+                System.out.println("Disconnected! Suspend markets.");
+            } else {
+                System.out.println("Reconnected! Recovered "
+                    + event.getRecoveryData().getMarkets().size() + " markets.");
+            }
         });
 
         // 3. Create ObjectMapper for JSON parsing

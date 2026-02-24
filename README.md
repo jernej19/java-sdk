@@ -70,9 +70,14 @@ SDKConfig.setOptions(options);
 ObjectMapper mapper = new ObjectMapper()
     .registerModule(new JavaTimeModule());
 
-EventHandler handler = new EventHandler(event ->
-    System.out.println("Event: " + event)
-);
+EventHandler handler = new EventHandler(event -> {
+    if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
+        System.out.println("Disconnected!");
+    } else {
+        System.out.println("Reconnected with " +
+            event.getRecoveryData().getMarkets().size() + " recovered markets");
+    }
+});
 
 RabbitMQFeed feed = new RabbitMQFeed(handler);
 feed.connect(message -> {
@@ -232,13 +237,17 @@ The SDK automatically handles disconnections with a clear flow to help you manag
 
 ```java
 EventHandler handler = new EventHandler(event -> {
-    if ("disconnection".equals(event)) {
-        // ⚠️ DISCONNECTED - Suspend/close your markets immediately
+    if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
+        // ⚠️ DISCONNECTED (code 100) - Suspend/close your markets immediately
         logger.warn("Feed disconnected - suspending markets");
         suspendAllMarkets();
-    } else if ("reconnection".equals(event)) {
-        // ✅ RECONNECTED - Recovery complete, safe to reopen markets
+    } else if (event.getCode() == ConnectionEvent.CODE_RECONNECTION) {
+        // ✅ RECONNECTED (code 101) - Recovery complete, safe to reopen markets
         logger.info("Feed reconnected - recovery complete");
+        // Recovery data is available in the event
+        ConnectionEvent.RecoveryData data = event.getRecoveryData();
+        logger.info("Recovered {} markets, {} matches",
+            data.getMarkets().size(), data.getMatches().size());
         reopenMarkets();
     }
 });
@@ -246,26 +255,28 @@ EventHandler handler = new EventHandler(event -> {
 
 ### Disconnection/Reconnection Flow
 
-**When disconnection is detected** (after 30 seconds without heartbeat):
-1. ⚠️ **"disconnection" event fired** → Your callback is notified **immediately**
+**When disconnection is detected** (after 3 consecutive missed heartbeats, ~30 seconds):
+1. ⚠️ **ConnectionEvent with code 100** → Your callback is notified **immediately**
 2. 👉 **Action required**: Suspend/close all markets on your side
 3. SDK begins automatic reconnection attempts with exponential backoff
 
-**When heartbeat is restored**:
+**When a real heartbeat message arrives after reconnection**:
 1. 🔄 SDK logs: "Heartbeat restored - starting recovery"
 2. 📦 SDK begins buffering incoming messages (continues consuming from RabbitMQ)
 3. 📊 SDK calls `recoverMarkets(downtime)` to fetch updated markets
 4. 📋 SDK calls `fetchMatchesRange(downtime, uptime)` to fetch modified matches
 5. 📤 SDK processes all buffered messages (in order)
 6. ✅ SDK logs: "Recovery complete - reconnection successful"
-7. ✅ **"reconnection" event fired** → Your callback is notified
+7. ✅ **ConnectionEvent with code 101** → Your callback is notified, with recovery data attached
 8. 👉 **Action required**: Reopen/resume markets - data is now synchronized
 
 ### Important Notes
 
-- **Customer callback timing**: You receive "disconnection" immediately, but "reconnection" **only after recovery completes**
+- **Event codes**: Disconnection = `ConnectionEvent.CODE_DISCONNECTION` (100), Reconnection = `ConnectionEvent.CODE_RECONNECTION` (101)
+- **Recovery data**: The reconnection event includes `RecoveryData` with recovered markets and matches from the two recovery API calls
+- **Customer callback timing**: You receive disconnection immediately, but reconnection **only after recovery completes**
 - **Message buffering**: During recovery, incoming messages are buffered internally to prevent race conditions
-- This ensures you have fresh data before reopening markets, with proper message ordering
+- **Heartbeat detection**: Heartbeat messages are identified by having an `at` field and no `type` field
 - Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually
 
 ### Example Log Output
