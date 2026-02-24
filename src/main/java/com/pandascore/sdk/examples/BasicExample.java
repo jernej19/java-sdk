@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.config.SDKOptions;
+import com.pandascore.sdk.events.ConnectionEvent;
 import com.pandascore.sdk.events.EventHandler;
 import com.pandascore.sdk.model.feed.fixtures.FixtureMessage;
 import com.pandascore.sdk.model.feed.markets.MarketsMessage;
@@ -46,7 +47,15 @@ public class BasicExample {
         // Event handler for disconnection/reconnection
         EventHandler eventHandler = new EventHandler(event -> {
             String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-            System.out.println("[" + time + "] 🔔 " + event.toUpperCase());
+            if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
+                System.out.println("[" + time + "] DISCONNECTION (code " + event.getCode() + ")");
+            } else {
+                System.out.println("[" + time + "] RECONNECTION (code " + event.getCode() + ")");
+                if (event.getRecoveryData() != null) {
+                    System.out.println("  Recovered " + event.getRecoveryData().getMarkets().size() + " markets, "
+                        + event.getRecoveryData().getMatches().size() + " matches");
+                }
+            }
         });
 
         // JSON parser

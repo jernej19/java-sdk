@@ -4,11 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.http.MatchesClient;
+import com.pandascore.sdk.model.feed.fixtures.FixtureMatch;
+import com.pandascore.sdk.model.feed.markets.MarketsRecoveryMatch;
 import com.pandascore.sdk.rmq.RabbitMQFeed;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,16 +30,18 @@ public class EventHandler implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(EventHandler.class);
 
     // Interval between expected heartbeats
-    private static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
-    // Maximum duration without a heartbeat before marking disconnected
-    private static final Duration MAX_MISSED = HEARTBEAT_INTERVAL.multipliedBy(3);
+    static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
+    // Number of consecutive missed heartbeats before triggering disconnection
+    static final int MAX_MISSED_COUNT = 3;
 
     private final ScheduledExecutorService scheduler;
     private final ScheduledFuture<?> checkTask;
-    private final Consumer<String> sink;
+    private final Consumer<ConnectionEvent> sink;
 
     // Last time a heartbeat was received
     private volatile Instant lastBeat;
+    // Number of consecutive missed heartbeats
+    private volatile int missedHeartbeats;
     // Whether currently marked as disconnected
     private volatile boolean disconnected;
     // Timestamp when disconnection was detected
@@ -43,9 +50,9 @@ public class EventHandler implements AutoCloseable {
     private volatile RabbitMQFeed feed;
 
     /**
-     * @param sink Consumer notified on "disconnection" or "reconnection" events
+     * @param sink Consumer notified with ConnectionEvent on disconnection (code 100) or reconnection (code 101)
      */
-    public EventHandler(Consumer<String> sink) {
+    public EventHandler(Consumer<ConnectionEvent> sink) {
         this.sink = sink;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "beat-watch");
@@ -54,6 +61,7 @@ public class EventHandler implements AutoCloseable {
         });
 
         this.lastBeat = Instant.now();
+        this.missedHeartbeats = 0;
         this.disconnected = false;
         this.downAt = null;
 
@@ -61,7 +69,7 @@ public class EventHandler implements AutoCloseable {
         Map<String, String> savedMap = MDC.getCopyOfContextMap();
         this.checkTask = scheduler.scheduleAtFixedRate(
             () -> {
-                MDC.setContextMap(savedMap);
+                if (savedMap != null) MDC.setContextMap(savedMap);
                 this.checkHeartbeat();
             },
             HEARTBEAT_INTERVAL.toMillis(),
@@ -81,11 +89,12 @@ public class EventHandler implements AutoCloseable {
     }
 
     /**
-     * Call when a heartbeat or health check is received to reset the timer.
+     * Call when a heartbeat message is received to reset the timer and missed-beat counter.
      * If previously disconnected, initiates recovery process before notifying application.
      */
     public void heartbeat() {
         lastBeat = Instant.now();
+        missedHeartbeats = 0;
         if (disconnected) {
             disconnected = false;
             Instant up = lastBeat;
@@ -97,10 +106,14 @@ public class EventHandler implements AutoCloseable {
                 feed.startRecovery();
             }
 
+            List<MarketsRecoveryMatch> recoveredMarkets = Collections.emptyList();
+            List<FixtureMatch> recoveredMatches = Collections.emptyList();
+
             try {
-                if (downAt != null) {
-                    MatchesClient.recoverMarkets(downAt.toString());
-                    MatchesClient.fetchMatchesRange(downAt.toString(), up.toString());
+                boolean recover = SDKConfig.getInstance().getOptions().isRecoverOnReconnect();
+                if (recover && downAt != null) {
+                    recoveredMarkets = MatchesClient.recoverMarkets(downAt.toString());
+                    recoveredMatches = MatchesClient.fetchMatchesRange(downAt.toString(), up.toString());
                 }
                 logger.info("Recovery complete - reconnection successful");
             } catch (Exception e) {
@@ -115,9 +128,20 @@ public class EventHandler implements AutoCloseable {
             }
 
             // Notify application AFTER recovery is complete AND buffered messages are processed
-            sink.accept("reconnection");
+            ConnectionEvent.RecoveryData data = new ConnectionEvent.RecoveryData(recoveredMarkets, recoveredMatches);
+            sink.accept(ConnectionEvent.reconnection(data));
             MDC.remove("operation");
         }
+    }
+
+    /**
+     * Resets the heartbeat timer and missed-beat counter without triggering recovery.
+     * Call this after a transport-level AMQP reconnection to prevent the timer from
+     * accumulating stale missed beats from before the reconnection.
+     */
+    public void resetTimer() {
+        lastBeat = Instant.now();
+        missedHeartbeats = 0;
     }
 
     /**
@@ -127,22 +151,31 @@ public class EventHandler implements AutoCloseable {
         if (!disconnected) {
             disconnected = true;
             downAt = Instant.now();
+            missedHeartbeats = 0;
             MDC.put("operation", "disconnection");
-            logger.info("Disconnection detected");  // Changed to INFO for consistency
-            sink.accept("disconnection");
+            logger.info("Disconnection detected");
+            sink.accept(ConnectionEvent.disconnection());
             MDC.remove("operation");
         }
     }
 
     // Internal check for missed heartbeats
     private void checkHeartbeat() {
-        if (!disconnected && Duration.between(lastBeat, Instant.now()).compareTo(MAX_MISSED) > 0) {
-            disconnected = true;
-            downAt = Instant.now();
-            MDC.put("operation", "disconnection");
-            logger.info("Missed heartbeat – marking disconnected");  // Changed to INFO for consistency
-            sink.accept("disconnection");
-            MDC.remove("operation");
+        if (disconnected) return;
+
+        if (Duration.between(lastBeat, Instant.now()).compareTo(HEARTBEAT_INTERVAL) > 0) {
+            missedHeartbeats++;
+            logger.debug("Missed heartbeat #{}", missedHeartbeats);
+            if (missedHeartbeats >= MAX_MISSED_COUNT) {
+                disconnected = true;
+                downAt = Instant.now();
+                MDC.put("operation", "disconnection");
+                logger.info("Missed {} heartbeats – marking disconnected", missedHeartbeats);
+                sink.accept(ConnectionEvent.disconnection());
+                MDC.remove("operation");
+            }
+        } else {
+            missedHeartbeats = 0;
         }
     }
 
@@ -162,5 +195,15 @@ public class EventHandler implements AutoCloseable {
     @Override
     public void close() {
         shutdown();
+    }
+
+    // Visible for testing
+    boolean isDisconnected() {
+        return disconnected;
+    }
+
+    // Visible for testing
+    int getMissedHeartbeats() {
+        return missedHeartbeats;
     }
 }

@@ -92,7 +92,10 @@ public final class RabbitMQFeed implements AutoCloseable {
         try {
             establish();
             startConsumers(sink);
-            handler.heartbeat();
+            // Reset the heartbeat timer after transport reconnection without
+            // triggering recovery — recovery should only start when a real
+            // heartbeat message arrives from the server.
+            handler.resetTimer();
             logger.info("Connected successfully");
             attempt = 1;
         } catch (Exception e) {
@@ -178,8 +181,10 @@ public final class RabbitMQFeed implements AutoCloseable {
             MDC.put("messageType", type);
             MDC.put("feed", type); // show event type in 'feed' tag
 
-            if ("v1.beat".equals(type)) {
-                // Health-check heartbeat
+            // Heartbeat detection: has "at" field but no "type" field
+            // (matches TypeScript SDK convention: message.at && !message.type)
+            boolean isHeartbeat = isHeartbeatMessage(json);
+            if (isHeartbeat) {
                 handler.heartbeat();
                 logger.debug("Received heartbeat");
                 chan.basicAck(msg.getEnvelope().getDeliveryTag(), false);
@@ -317,5 +322,17 @@ public final class RabbitMQFeed implements AutoCloseable {
         } catch (Exception e) {
             logger.warn("Error closing connection", e);
         }
+    }
+
+    /**
+     * Determines if a JSON message is a heartbeat.
+     * Heartbeats have an "at" field but no "type" field, matching the
+     * TypeScript SDK convention: {@code message.at && !message.type}.
+     *
+     * @param json the parsed JSON message
+     * @return true if the message is a heartbeat
+     */
+    static boolean isHeartbeatMessage(JsonNode json) {
+        return json.has("at") && !json.has("type");
     }
 }
