@@ -288,6 +288,8 @@ Run tests:
 
 7. **Routing key structure**: `...<eventType>.<eventId>.<action>` — the consumer parses `parts[length-4]`, `parts[length-3]`, `parts[length-1]`.
 
+8. **Connection limit warning**: A global `AtomicInteger` counter tracks active AMQP connections across all `RabbitMQFeed` instances. When the count reaches `MAX_CONNECTIONS` (10), the SDK logs a WARN-level message advising the user to close unused feeds. The SDK does **not** hard-block new connections — it only warns. `RabbitMQFeed.getActiveConnectionCount()` exposes the current count for monitoring. Old connections are automatically closed before reconnecting to prevent leaks.
+
 ---
 
 ## Known Differences from TypeScript SDK Reference

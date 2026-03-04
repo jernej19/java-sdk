@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -38,6 +39,16 @@ import java.util.function.Consumer;
  */
 public final class RabbitMQFeed implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(RabbitMQFeed.class);
+
+    /**
+     * Maximum number of concurrent AMQP connections before the SDK emits a warning.
+     * Exceeding this limit usually indicates a misuse pattern (e.g. creating new
+     * RabbitMQFeed instances without closing previous ones).
+     */
+    static final int MAX_CONNECTIONS = 10;
+
+    /** Global counter of active AMQP connections across all RabbitMQFeed instances. */
+    private static final AtomicInteger activeConnections = new AtomicInteger(0);
 
     private final SDKOptions opts = SDKConfig.getInstance().getOptions();
     private final boolean alwaysLogPayload = opts.isAlwaysLogPayload();
@@ -108,10 +119,14 @@ public final class RabbitMQFeed implements AutoCloseable {
 
     /**
      * Establishes the AMQPS connection and declares exchange and queues.
+     * Closes any existing connection before creating a new one to prevent leaks.
      *
      * @throws Exception on connection or SSL setup failures
      */
     private void establish() throws Exception {
+        // Close any existing connection to prevent leaks (e.g. connect() called twice)
+        closeExistingConnection();
+
         String host = opts.getFeedHost();
         int companyId = (int) opts.getCompanyId();
         String user = opts.getEmail();
@@ -141,10 +156,21 @@ public final class RabbitMQFeed implements AutoCloseable {
         conn = factory.newConnection();
         chan = conn.createChannel();
 
+        int count = activeConnections.incrementAndGet();
+        if (count >= MAX_CONNECTIONS) {
+            logger.warn("Active AMQP connection count is {} (max recommended: {}). "
+                + "This usually indicates RabbitMQFeed instances are being created "
+                + "without closing previous ones. Call close() on unused feeds to "
+                + "release connections.", count, MAX_CONNECTIONS);
+        } else {
+            logger.info("AMQP connection established (active connections: {})", count);
+        }
+
         // Listen for shutdown to trigger disconnection handling
         conn.addShutdownListener(cause -> {
             MDC.put("operation", "shutdown");
-            logger.warn("AMQP shutdown: {}", cause.getMessage());
+            int remaining = activeConnections.decrementAndGet();
+            logger.warn("AMQP shutdown: {} (active connections: {})", cause.getMessage(), remaining);
             handler.handleDisconnection();
             MDC.remove("operation");
         });
@@ -297,6 +323,31 @@ public final class RabbitMQFeed implements AutoCloseable {
     }
 
     /**
+     * Closes the existing AMQP channel and connection if they are open.
+     * Decrements the global active connection counter.
+     * Called before establishing a new connection to prevent leaks.
+     */
+    private void closeExistingConnection() {
+        try {
+            if (chan != null && chan.isOpen()) {
+                chan.close();
+            }
+        } catch (Exception e) {
+            logger.debug("Error closing existing channel", e);
+        }
+        try {
+            if (conn != null && conn.isOpen()) {
+                conn.close();
+                activeConnections.decrementAndGet();
+            }
+        } catch (Exception e) {
+            logger.debug("Error closing existing connection", e);
+        }
+        chan = null;
+        conn = null;
+    }
+
+    /**
      * Cleanly shuts down the feed: stops heartbeats, cancels retries,
      * and closes channels and connection.
      */
@@ -308,20 +359,21 @@ public final class RabbitMQFeed implements AutoCloseable {
         } catch (Exception e) {
             logger.warn("Error shutting down event handler", e);
         }
-        try {
-            if (chan != null && chan.isOpen()) {
-                chan.close();
-            }
-        } catch (Exception e) {
-            logger.warn("Error closing channel", e);
-        }
-        try {
-            if (conn != null && conn.isOpen()) {
-                conn.close();
-            }
-        } catch (Exception e) {
-            logger.warn("Error closing connection", e);
-        }
+        closeExistingConnection();
+    }
+
+    /**
+     * Returns the current number of active AMQP connections across all RabbitMQFeed instances.
+     *
+     * @return the active connection count
+     */
+    public static int getActiveConnectionCount() {
+        return activeConnections.get();
+    }
+
+    // Visible for testing: reset the global counter
+    static void resetActiveConnectionCount() {
+        activeConnections.set(0);
     }
 
     /**
