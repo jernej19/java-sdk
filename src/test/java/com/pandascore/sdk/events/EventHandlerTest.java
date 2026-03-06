@@ -15,7 +15,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -84,6 +83,12 @@ class EventHandlerTest {
         f.set(handler, val);
     }
 
+    private void setReady(boolean val) throws Exception {
+        Field f = EventHandler.class.getDeclaredField("ready");
+        f.setAccessible(true);
+        f.set(handler, val);
+    }
+
     private void invokeCheckHeartbeat() throws Exception {
         Method m = EventHandler.class.getDeclaredMethod("checkHeartbeat");
         m.setAccessible(true);
@@ -105,12 +110,10 @@ class EventHandlerTest {
     @Test
     @DisplayName("heartbeat() updates lastBeat to approximately now")
     void heartbeat_updatesLastBeat() throws Exception {
+        setReady(true);
         setLastBeat(Instant.now().minus(Duration.ofMinutes(5)));
-        Instant before = Instant.now();
         handler.heartbeat();
-        // After heartbeat, the handler should not be in disconnected state
-        // and the internal lastBeat should be recent (indirectly verified
-        // by checkHeartbeat not triggering disconnection)
+        // After heartbeat, lastBeat is reset to now; checkHeartbeat must not fire
         invokeCheckHeartbeat();
         assertTrue(events.isEmpty(), "No disconnection should fire after heartbeat");
     }
@@ -120,10 +123,11 @@ class EventHandlerTest {
     // ============================================================
 
     @Test
-    @DisplayName("checkHeartbeat increments missedHeartbeats when beat is overdue")
+    @DisplayName("checkHeartbeat increments missedHeartbeats when beat is overdue (> interval + grace)")
     void checkHeartbeat_incrementsMissedCounter() throws Exception {
-        // Set lastBeat to 11 seconds ago (just past one interval)
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setReady(true);
+        // 16s > HEARTBEAT_INTERVAL(10) + HEARTBEAT_GRACE(5)
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
         invokeCheckHeartbeat();
 
         assertEquals(1, handler.getMissedHeartbeats());
@@ -132,8 +136,20 @@ class EventHandlerTest {
     }
 
     @Test
+    @DisplayName("checkHeartbeat does not increment when beat is within grace period")
+    void checkHeartbeat_doesNotIncrementWithinGrace() throws Exception {
+        setReady(true);
+        // 11s is past HEARTBEAT_INTERVAL but within the grace buffer — no miss yet
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        invokeCheckHeartbeat();
+        assertEquals(0, handler.getMissedHeartbeats());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
     @DisplayName("checkHeartbeat does not increment when beat is recent")
     void checkHeartbeat_doesNotIncrementWhenRecent() throws Exception {
+        setReady(true);
         // lastBeat is recent (set in constructor)
         invokeCheckHeartbeat();
         assertEquals(0, handler.getMissedHeartbeats());
@@ -143,7 +159,8 @@ class EventHandlerTest {
     @Test
     @DisplayName("Disconnection triggers only after 3 consecutive missed beats")
     void disconnection_triggersAfterThreeMissedBeats() throws Exception {
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setReady(true);
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
 
         // Beat 1 missed
         invokeCheckHeartbeat();
@@ -167,7 +184,8 @@ class EventHandlerTest {
     @Test
     @DisplayName("Missed counter resets to 0 when a heartbeat arrives mid-sequence")
     void missedCounter_resetsOnHeartbeat() throws Exception {
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setReady(true);
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
 
         invokeCheckHeartbeat(); // miss 1
         invokeCheckHeartbeat(); // miss 2
@@ -191,7 +209,8 @@ class EventHandlerTest {
     @Test
     @DisplayName("Disconnection event fires exactly once even with multiple missed checks")
     void disconnection_firesOnlyOnce() throws Exception {
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setReady(true);
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
 
         invokeCheckHeartbeat(); // miss 1
         invokeCheckHeartbeat(); // miss 2
@@ -217,6 +236,7 @@ class EventHandlerTest {
     @Test
     @DisplayName("handleDisconnection + checkHeartbeat do not produce duplicate events")
     void handleDisconnection_andCheckHeartbeat_noDuplicate() throws Exception {
+        setReady(true);
         handler.handleDisconnection();
         setLastBeat(Instant.now().minus(Duration.ofSeconds(31)));
         invokeCheckHeartbeat();
@@ -240,7 +260,8 @@ class EventHandlerTest {
     @Test
     @DisplayName("checkHeartbeat-triggered disconnection emits code 100")
     void checkHeartbeat_disconnection_emitsCode100() throws Exception {
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setReady(true);
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
         invokeCheckHeartbeat();
         invokeCheckHeartbeat();
         invokeCheckHeartbeat();
@@ -306,7 +327,7 @@ class EventHandlerTest {
     }
 
     // ============================================================
-    //  6. resetTimer does NOT trigger recovery
+    //  6. resetTimer does NOT trigger recovery — and sets ready
     // ============================================================
 
     @Test
@@ -327,13 +348,21 @@ class EventHandlerTest {
     }
 
     @Test
+    @DisplayName("resetTimer() marks the handler as ready for heartbeat counting")
+    void resetTimer_setsReady() {
+        assertFalse(handler.isReady(), "Should not be ready before resetTimer()");
+        handler.resetTimer();
+        assertTrue(handler.isReady(), "Should be ready after resetTimer()");
+    }
+
+    @Test
     @DisplayName("resetTimer() prevents stale missed-beat accumulation after AMQP reconnect")
     void resetTimer_preventsStaleMisses() throws Exception {
         // Simulate: lastBeat is old, 2 beats already missed
         setLastBeat(Instant.now().minus(Duration.ofSeconds(25)));
         setMissedHeartbeats(2);
 
-        // AMQP reconnects — resetTimer called
+        // AMQP reconnects — resetTimer called (also sets ready=true)
         handler.resetTimer();
 
         // Now checkHeartbeat should see fresh lastBeat, no increment
@@ -344,7 +373,76 @@ class EventHandlerTest {
     }
 
     // ============================================================
-    //  7. recoverOnReconnect flag is respected
+    //  7. ready flag — checkHeartbeat is a no-op before connection
+    // ============================================================
+
+    @Test
+    @DisplayName("checkHeartbeat does nothing before connection is established (ready=false)")
+    void checkHeartbeat_doesNothing_beforeReady() throws Exception {
+        // ready starts as false; set an old lastBeat to prove the check is skipped
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(60)));
+        setMissedHeartbeats(0);
+
+        invokeCheckHeartbeat();
+        invokeCheckHeartbeat();
+        invokeCheckHeartbeat();
+
+        assertEquals(0, handler.getMissedHeartbeats(), "No misses counted before ready");
+        assertFalse(handler.isDisconnected());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    @DisplayName("checkHeartbeat starts counting only after resetTimer() is called")
+    void checkHeartbeat_startsAfterResetTimer() throws Exception {
+        // Before resetTimer — checkHeartbeat is a no-op even with a very old lastBeat
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(60)));
+        invokeCheckHeartbeat();
+        assertEquals(0, handler.getMissedHeartbeats());
+
+        // resetTimer() marks ready and refreshes lastBeat to now
+        handler.resetTimer();
+        assertTrue(handler.isReady());
+
+        // Subsequent check sees recent lastBeat — no miss
+        invokeCheckHeartbeat();
+        assertEquals(0, handler.getMissedHeartbeats());
+        assertTrue(events.isEmpty());
+    }
+
+    // ============================================================
+    //  8. Grace period (HEARTBEAT_GRACE = 5s)
+    // ============================================================
+
+    @Test
+    @DisplayName("HEARTBEAT_GRACE constant is 5 seconds")
+    void heartbeatGrace_is5seconds() {
+        assertEquals(Duration.ofSeconds(5), EventHandler.HEARTBEAT_GRACE);
+    }
+
+    @Test
+    @DisplayName("Beat arriving just after interval but within grace is NOT counted as missed")
+    void grace_withinGrace_notMissed() throws Exception {
+        setReady(true);
+        // 14s = interval(10) + 4s — inside grace window (grace = 5s, threshold = 15s)
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(14)));
+        invokeCheckHeartbeat();
+        assertEquals(0, handler.getMissedHeartbeats());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Beat past interval + grace IS counted as missed")
+    void grace_pastGrace_counted() throws Exception {
+        setReady(true);
+        // 16s > interval(10) + grace(5) = 15s
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
+        invokeCheckHeartbeat();
+        assertEquals(1, handler.getMissedHeartbeats());
+    }
+
+    // ============================================================
+    //  9. recoverOnReconnect flag is respected
     // ============================================================
 
     @Test
@@ -403,7 +501,7 @@ class EventHandlerTest {
     }
 
     // ============================================================
-    //  8. Timer interval constant
+    // 10. Timer interval and miss-count constants
     // ============================================================
 
     @Test
@@ -419,7 +517,7 @@ class EventHandlerTest {
     }
 
     // ============================================================
-    //  9. Recovery failure does not prevent reconnection event
+    // 11. Recovery failure does not prevent reconnection event
     // ============================================================
 
     @Test
@@ -442,18 +540,21 @@ class EventHandlerTest {
     }
 
     // ============================================================
-    // 10. Full lifecycle: connect → disconnect → reconnect
+    // 12. Full lifecycle: connect → disconnect → reconnect
     // ============================================================
 
     @Test
     @DisplayName("Full lifecycle: normal → missed beats → disconnection → heartbeat → reconnection")
     void fullLifecycle() throws Exception {
+        // Phase 0: connection established — resetTimer marks ready
+        handler.resetTimer();
+
         // Phase 1: Normal operation — no events
         invokeCheckHeartbeat();
         assertTrue(events.isEmpty());
 
         // Phase 2: Heartbeats stop arriving
-        setLastBeat(Instant.now().minus(Duration.ofSeconds(11)));
+        setLastBeat(Instant.now().minus(Duration.ofSeconds(16)));
         invokeCheckHeartbeat(); // miss 1
         invokeCheckHeartbeat(); // miss 2
         assertTrue(events.isEmpty());
