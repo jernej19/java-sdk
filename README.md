@@ -4,6 +4,7 @@ Modern Java SDK for consuming live esports odds and match data from PandaScore's
 
 [![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
 [![Build Tool](https://img.shields.io/badge/Build-Gradle-green)](https://gradle.org/)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.1.0-blue)](https://github.com/jernej19/java-sdk/packages)
 
 ## 🎯 Overview
 
@@ -31,16 +32,54 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 
 ## 🚀 Quick Start
 
-### 1. Extract and Build
+### 1. Add Dependency
 
-```bash
-# Extract the provided SDK package
-unzip pandascore-sdk-java.zip
-cd pandascore-sdk-java
+The SDK is published to GitHub Packages. Add the repository and dependency to your project.
 
-# Make gradlew executable and build
-chmod +x gradlew
-./gradlew build
+**Gradle (`build.gradle.kts`):**
+```kotlin
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/jernej19/java-sdk")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    implementation("co.pandascore:pandascore-sdk-java:1.1.0")
+}
+```
+
+**Maven (`pom.xml`):**
+```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/jernej19/java-sdk</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>co.pandascore</groupId>
+    <artifactId>pandascore-sdk-java</artifactId>
+    <version>1.1.0</version>
+</dependency>
+```
+
+Add credentials to `~/.m2/settings.xml` (Maven only):
+```xml
+<settings>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>${env.GITHUB_ACTOR}</username>
+            <password>${env.GITHUB_TOKEN}</password>
+        </server>
+    </servers>
+</settings>
 ```
 
 ### 2. Configure Credentials
@@ -101,9 +140,11 @@ feed.connect(message -> {
 
 ### 4. Run Example
 
+If you cloned the repository directly:
+
 ```bash
-# Run the example
-./gradlew run --args="com.pandascore.sdk.examples.BasicExample"
+chmod +x gradlew
+./gradlew run
 ```
 
 ## 📚 Documentation
