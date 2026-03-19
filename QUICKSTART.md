@@ -4,22 +4,52 @@
 
 ### 1. Add Dependency
 
-Add to your `build.gradle`:
-```gradle
+The SDK is published to GitHub Packages. You need to authenticate with a GitHub token that has `read:packages` scope.
+
+**Gradle (`build.gradle.kts`):**
+```kotlin
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/jernej19/java-sdk")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
 dependencies {
-    implementation files('path/to/java-sdk.jar')
-    // Or if published to Maven:
-    // implementation 'com.pandascore:sdk:1.0.0'
+    implementation("co.pandascore:pandascore-sdk-java:1.1.0")
 }
 ```
 
-Or `pom.xml`:
+**Maven (`pom.xml`):**
 ```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/jernej19/java-sdk</url>
+    </repository>
+</repositories>
+
 <dependency>
-    <groupId>com.pandascore</groupId>
-    <artifactId>sdk</artifactId>
-    <version>1.0.0</version>
+    <groupId>co.pandascore</groupId>
+    <artifactId>pandascore-sdk-java</artifactId>
+    <version>1.1.0</version>
 </dependency>
+```
+
+Add credentials to `~/.m2/settings.xml`:
+```xml
+<settings>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>${env.GITHUB_ACTOR}</username>
+            <password>${env.GITHUB_TOKEN}</password>
+        </server>
+    </servers>
+</settings>
 ```
 
 ### 2. Basic Usage Example
