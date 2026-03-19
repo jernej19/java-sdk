@@ -31,6 +31,10 @@ public class EventHandler implements AutoCloseable {
 
     // Interval between expected heartbeats
     static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
+    // Grace period added to HEARTBEAT_INTERVAL before counting a beat as missed.
+    // Absorbs network jitter: a beat is only missed if it is more than
+    // HEARTBEAT_INTERVAL + HEARTBEAT_GRACE seconds late.
+    static final Duration HEARTBEAT_GRACE = Duration.ofSeconds(5);
     // Number of consecutive missed heartbeats before triggering disconnection
     static final int MAX_MISSED_COUNT = 3;
 
@@ -44,6 +48,10 @@ public class EventHandler implements AutoCloseable {
     private volatile int missedHeartbeats;
     // Whether currently marked as disconnected
     private volatile boolean disconnected;
+    // Whether the connection has been fully established at least once.
+    // checkHeartbeat() is a no-op until resetTimer() marks us ready,
+    // preventing false disconnection events during the initial dial-up.
+    private volatile boolean ready;
     // Timestamp when disconnection was detected
     private volatile Instant downAt;
     // RabbitMQ feed reference (for controlling message buffering during recovery)
@@ -63,6 +71,7 @@ public class EventHandler implements AutoCloseable {
         this.lastBeat = Instant.now();
         this.missedHeartbeats = 0;
         this.disconnected = false;
+        this.ready = false;
         this.downAt = null;
 
         // Schedule periodic check for missed heartbeats
@@ -136,12 +145,16 @@ public class EventHandler implements AutoCloseable {
 
     /**
      * Resets the heartbeat timer and missed-beat counter without triggering recovery.
-     * Call this after a transport-level AMQP reconnection to prevent the timer from
-     * accumulating stale missed beats from before the reconnection.
+     * Also marks the handler as ready, enabling missed-beat counting.
+     * <p>
+     * Called by {@link com.pandascore.sdk.rmq.RabbitMQFeed} after a connection is
+     * fully established. Until this is called, {@code checkHeartbeat()} is a no-op,
+     * preventing false disconnection events during the initial AMQP dial-up.
      */
     public void resetTimer() {
         lastBeat = Instant.now();
         missedHeartbeats = 0;
+        ready = true;
     }
 
     /**
@@ -161,9 +174,10 @@ public class EventHandler implements AutoCloseable {
 
     // Internal check for missed heartbeats
     private void checkHeartbeat() {
+        if (!ready) return;      // connection not yet established — do not count
         if (disconnected) return;
 
-        if (Duration.between(lastBeat, Instant.now()).compareTo(HEARTBEAT_INTERVAL) > 0) {
+        if (Duration.between(lastBeat, Instant.now()).compareTo(HEARTBEAT_INTERVAL.plus(HEARTBEAT_GRACE)) > 0) {
             missedHeartbeats++;
             logger.debug("Missed heartbeat #{}", missedHeartbeats);
             if (missedHeartbeats >= MAX_MISSED_COUNT) {
@@ -205,5 +219,10 @@ public class EventHandler implements AutoCloseable {
     // Visible for testing
     int getMissedHeartbeats() {
         return missedHeartbeats;
+    }
+
+    // Visible for testing
+    boolean isReady() {
+        return ready;
     }
 }
