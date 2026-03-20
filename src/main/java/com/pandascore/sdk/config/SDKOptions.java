@@ -73,6 +73,16 @@ public class SDKOptions {
     private final boolean fractionalOdds = false;
 
     /**
+     * Maximum number of unacknowledged messages the broker will push to each consumer.
+     * A lower value prevents consumers from hoarding messages and keeps the Unacked
+     * count predictable. Default: 20.
+     * <p>
+     * Set to 0 for unlimited prefetch (not recommended for production).
+     */
+    @Builder.Default
+    private final int prefetchCount = 20;
+
+    /**
      * Whether to automatically trigger recovery (recoverMarkets + fetchMatchesRange)
      * when reconnection occurs. Default: true.
      * <p>
