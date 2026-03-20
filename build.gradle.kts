@@ -87,7 +87,7 @@ publishing {
         maven {
             name = "GitHubPackages"
             // Override with GITHUB_REPOSITORY env var for testing on forks
-            // e.g. GITHUB_REPOSITORY=jernej19/java-sdk
+            // e.g. GITHUB_REPOSITORY=PandaScore/pandascore-sdk-java
             // Defaults to PandaScore/pandascore-sdk-java for production
             val repo = providers.environmentVariable("GITHUB_REPOSITORY")
                 .orElse("PandaScore/pandascore-sdk-java")
