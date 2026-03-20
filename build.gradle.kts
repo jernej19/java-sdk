@@ -57,12 +57,12 @@ publishing {
             pom {
                 name        = "PandaScore Java SDK"
                 description = "Real-time esports betting data feed client for PandaScore AMQPS streams"
-                url         = "https://github.com/jernej19/java-sdk"
+                url         = "https://github.com/PandaScore/pandascore-sdk-java"
 
                 licenses {
                     license {
                         name = "Proprietary"
-                        url  = "https://github.com/jernej19/java-sdk"
+                        url  = "https://github.com/PandaScore/pandascore-sdk-java"
                     }
                 }
 
@@ -75,9 +75,9 @@ publishing {
                 }
 
                 scm {
-                    connection          = "scm:git:git://github.com/jernej19/java-sdk.git"
-                    developerConnection = "scm:git:ssh://github.com/jernej19/java-sdk.git"
-                    url                 = "https://github.com/jernej19/java-sdk"
+                    connection          = "scm:git:git://github.com/PandaScore/pandascore-sdk-java.git"
+                    developerConnection = "scm:git:ssh://github.com/PandaScore/pandascore-sdk-java.git"
+                    url                 = "https://github.com/PandaScore/pandascore-sdk-java"
                 }
             }
         }
@@ -86,7 +86,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url  = uri("https://maven.pkg.github.com/jernej19/java-sdk")
+            url  = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
             credentials {
                 // Set GITHUB_ACTOR and GITHUB_TOKEN in your environment,
                 // or add them to ~/.gradle/gradle.properties as:

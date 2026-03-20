@@ -156,6 +156,16 @@ public final class RabbitMQFeed implements AutoCloseable {
         conn = factory.newConnection();
         chan = conn.createChannel();
 
+        // Set QoS prefetch to limit unacked messages per consumer.
+        // Without this, RabbitMQ pushes unlimited messages causing large Unacked counts.
+        int prefetch = opts.getPrefetchCount();
+        if (prefetch > 0) {
+            chan.basicQos(prefetch);
+            logger.info("Channel QoS prefetch set to {}", prefetch);
+        } else {
+            logger.warn("Channel QoS prefetch is unlimited (0) — not recommended for production");
+        }
+
         int count = activeConnections.incrementAndGet();
         if (count >= MAX_CONNECTIONS) {
             logger.warn("Active AMQP connection count is {} (max recommended: {}). "
