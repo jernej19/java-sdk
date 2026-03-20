@@ -4,7 +4,7 @@ Modern Java SDK for consuming live esports odds and match data from PandaScore's
 
 [![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
 [![Build Tool](https://img.shields.io/badge/Build-Gradle-green)](https://gradle.org/)
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.1.0-blue)](https://github.com/jernej19/java-sdk/packages)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.1.0-blue)](https://github.com/PandaScore/pandascore-sdk-java/packages)
 
 ## 🎯 Overview
 
@@ -40,7 +40,7 @@ The SDK is published to GitHub Packages. Add the repository and dependency to yo
 ```kotlin
 repositories {
     maven {
-        url = uri("https://maven.pkg.github.com/jernej19/java-sdk")
+        url = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
         credentials {
             username = System.getenv("GITHUB_ACTOR")
             password = System.getenv("GITHUB_TOKEN")
@@ -58,7 +58,7 @@ dependencies {
 <repositories>
     <repository>
         <id>github</id>
-        <url>https://maven.pkg.github.com/jernej19/java-sdk</url>
+        <url>https://maven.pkg.github.com/PandaScore/pandascore-sdk-java</url>
     </repository>
 </repositories>
 

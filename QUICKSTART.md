@@ -10,7 +10,7 @@ The SDK is published to GitHub Packages. You need to authenticate with a GitHub 
 ```kotlin
 repositories {
     maven {
-        url = uri("https://maven.pkg.github.com/jernej19/java-sdk")
+        url = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
         credentials {
             username = System.getenv("GITHUB_ACTOR")
             password = System.getenv("GITHUB_TOKEN")
@@ -28,7 +28,7 @@ dependencies {
 <repositories>
     <repository>
         <id>github</id>
-        <url>https://maven.pkg.github.com/jernej19/java-sdk</url>
+        <url>https://maven.pkg.github.com/PandaScore/pandascore-sdk-java</url>
     </repository>
 </repositories>
 
