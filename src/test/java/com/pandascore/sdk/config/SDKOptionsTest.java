@@ -23,10 +23,10 @@ class SDKOptionsTest {
     }
 
     @Test
-    @DisplayName("Default prefetchCount is 20")
-    void defaultPrefetchCount_is20() {
+    @DisplayName("Default prefetchCount is 1")
+    void defaultPrefetchCount_is1() {
         SDKOptions opts = minimalBuilder().build();
-        assertEquals(20, opts.getPrefetchCount());
+        assertEquals(1, opts.getPrefetchCount());
     }
 
     @Test
