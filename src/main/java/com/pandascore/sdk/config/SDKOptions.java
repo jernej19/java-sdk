@@ -74,13 +74,16 @@ public class SDKOptions {
 
     /**
      * Maximum number of unacknowledged messages the broker will push to each consumer.
-     * A lower value prevents consumers from hoarding messages and keeps the Unacked
-     * count predictable. Default: 20.
+     * Default: 1 (strict ordering guarantee).
+     * <p>
+     * With prefetch=1, each consumer processes one message at a time, ensuring
+     * messages are handled in the order they arrive. Higher values improve throughput
+     * but risk out-of-order processing when multiple consumers share the same queue.
      * <p>
      * Set to 0 for unlimited prefetch (not recommended for production).
      */
     @Builder.Default
-    private final int prefetchCount = 20;
+    private final int prefetchCount = 1;
 
     /**
      * Whether to automatically trigger recovery (recoverMarkets + fetchMatchesRange)
