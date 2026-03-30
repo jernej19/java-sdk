@@ -121,6 +121,19 @@ class SDKConfigTest {
         assertThrows(NullPointerException.class, () -> SDKConfig.setOptions(opts));
     }
 
+    @Test
+    @DisplayName("setOptions with too many queueBindings throws IllegalArgumentException")
+    void setOptions_tooManyQueueBindings_throws() {
+        SDKOptions.SDKOptionsBuilder builder = SDKOptions.builder()
+            .apiToken("t").companyId(1).email("e@e.com").password("p");
+        for (int i = 0; i < SDKOptions.MAX_QUEUES_PER_CONNECTION + 1; i++) {
+            builder.queueBinding(SDKOptions.QueueBinding.builder()
+                .queueName("q" + i).routingKey("r" + i).build());
+        }
+        SDKOptions opts = builder.build();
+        assertThrows(IllegalArgumentException.class, () -> SDKConfig.setOptions(opts));
+    }
+
     // ============================================================
     //  getInstance before setOptions
     // ============================================================

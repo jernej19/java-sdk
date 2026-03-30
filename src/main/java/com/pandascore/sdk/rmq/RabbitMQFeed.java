@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -65,6 +67,9 @@ public final class RabbitMQFeed implements AutoCloseable {
     });
     private int attempt = 1;
 
+    // Per-connection queue bindings (if provided, overrides global config)
+    private final List<SDKOptions.QueueBinding> queueBindings;
+
     // Recovery state: when true, buffer messages instead of processing them
     private volatile boolean recovering = false;
     // Buffer for messages received during recovery
@@ -74,11 +79,46 @@ public final class RabbitMQFeed implements AutoCloseable {
 
     /**
      * Constructs a new RabbitMQFeed with the given EventHandler.
+     * Uses queue bindings from the global SDKConfig.
      *
      * @param handler handles heartbeat and disconnection events
      */
     public RabbitMQFeed(EventHandler handler) {
+        this(handler, null);
+    }
+
+    /**
+     * Constructs a new RabbitMQFeed with the given EventHandler and
+     * per-connection queue bindings.
+     *
+     * @param handler        handles heartbeat and disconnection events
+     * @param queueBindings  queue bindings for this connection, or null to use global config
+     * @throws IllegalArgumentException if queueBindings is empty or exceeds {@link SDKOptions#MAX_QUEUES_PER_CONNECTION}
+     */
+    public RabbitMQFeed(EventHandler handler, List<SDKOptions.QueueBinding> queueBindings) {
         this.handler = handler;
+        if (queueBindings != null) {
+            if (queueBindings.isEmpty()) {
+                throw new IllegalArgumentException("queueBindings must not be empty");
+            }
+            if (queueBindings.size() > SDKOptions.MAX_QUEUES_PER_CONNECTION) {
+                throw new IllegalArgumentException(
+                    "Cannot bind more than " + SDKOptions.MAX_QUEUES_PER_CONNECTION
+                        + " queues per connection. Specified: " + queueBindings.size());
+            }
+            queueBindings.forEach(SDKOptions.QueueBinding::validate);
+            this.queueBindings = Collections.unmodifiableList(queueBindings);
+        } else {
+            this.queueBindings = null;
+        }
+    }
+
+    /**
+     * Returns the effective queue bindings for this connection.
+     * Uses per-connection bindings if provided, otherwise falls back to global config.
+     */
+    private List<SDKOptions.QueueBinding> getEffectiveQueueBindings() {
+        return queueBindings != null ? queueBindings : opts.getQueueBindings();
     }
 
     /**
@@ -167,14 +207,17 @@ public final class RabbitMQFeed implements AutoCloseable {
         }
 
         int count = activeConnections.incrementAndGet();
-        if (count >= MAX_CONNECTIONS) {
-            logger.warn("Active AMQP connection count is {} (max recommended: {}). "
-                + "This usually indicates RabbitMQFeed instances are being created "
-                + "without closing previous ones. Call close() on unused feeds to "
-                + "release connections.", count, MAX_CONNECTIONS);
-        } else {
-            logger.info("AMQP connection established (active connections: {})", count);
+        if (count > MAX_CONNECTIONS) {
+            activeConnections.decrementAndGet();
+            conn.close();
+            conn = null;
+            chan = null;
+            throw new IllegalStateException(
+                "Cannot create more than " + MAX_CONNECTIONS
+                    + " concurrent AMQP connections. Currently active: " + (count - 1)
+                    + ". Call close() on unused feeds to release connections.");
         }
+        logger.info("AMQP connection established (active connections: {})", count);
 
         // Listen for shutdown to trigger disconnection handling
         conn.addShutdownListener(cause -> {
@@ -188,7 +231,7 @@ public final class RabbitMQFeed implements AutoCloseable {
         // Declare exchange and queues
         String exchange = "pandascore.feed";
         chan.exchangeDeclare(exchange, BuiltinExchangeType.TOPIC, true);
-        for (SDKOptions.QueueBinding qb : opts.getQueueBindings()) {
+        for (SDKOptions.QueueBinding qb : getEffectiveQueueBindings()) {
             MDC.put("routingKey", qb.getRoutingKey());
             chan.queueDeclare(qb.getQueueName(), true, false, false, null);
             chan.queueBind(qb.getQueueName(), exchange, qb.getRoutingKey());
@@ -268,7 +311,7 @@ public final class RabbitMQFeed implements AutoCloseable {
             MDC.remove("feed");
         };
 
-        for (SDKOptions.QueueBinding qb : opts.getQueueBindings()) {
+        for (SDKOptions.QueueBinding qb : getEffectiveQueueBindings()) {
             chan.basicConsume(
                 qb.getQueueName(),
                 false,
