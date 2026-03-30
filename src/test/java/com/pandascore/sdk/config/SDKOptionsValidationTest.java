@@ -183,6 +183,38 @@ class SDKOptionsValidationTest {
         assertThrows(Exception.class, opts::validate);
     }
 
+    @Test
+    @DisplayName("validate() passes with exactly MAX_QUEUES_PER_CONNECTION bindings")
+    void validate_maxQueuesExact_passes() {
+        SDKOptions.SDKOptionsBuilder builder = SDKOptions.builder()
+            .apiToken("t").companyId(1).email("e@e.com").password("p");
+        for (int i = 0; i < SDKOptions.MAX_QUEUES_PER_CONNECTION; i++) {
+            builder.queueBinding(SDKOptions.QueueBinding.builder()
+                .queueName("q" + i).routingKey("r" + i).build());
+        }
+        assertDoesNotThrow(() -> builder.build().validate());
+    }
+
+    @Test
+    @DisplayName("validate() throws when queue bindings exceed MAX_QUEUES_PER_CONNECTION")
+    void validate_tooManyQueues_throws() {
+        SDKOptions.SDKOptionsBuilder builder = SDKOptions.builder()
+            .apiToken("t").companyId(1).email("e@e.com").password("p");
+        for (int i = 0; i < SDKOptions.MAX_QUEUES_PER_CONNECTION + 1; i++) {
+            builder.queueBinding(SDKOptions.QueueBinding.builder()
+                .queueName("q" + i).routingKey("r" + i).build());
+        }
+        SDKOptions opts = builder.build();
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, opts::validate);
+        assertTrue(ex.getMessage().contains("Cannot bind more than"));
+    }
+
+    @Test
+    @DisplayName("MAX_QUEUES_PER_CONNECTION constant is 10")
+    void maxQueuesPerConnectionIsTen() {
+        assertEquals(10, SDKOptions.MAX_QUEUES_PER_CONNECTION);
+    }
+
     // ============================================================
     //  QueueBinding validation
     // ============================================================

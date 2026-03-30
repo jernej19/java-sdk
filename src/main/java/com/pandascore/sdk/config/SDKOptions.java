@@ -96,6 +96,11 @@ public class SDKOptions {
     private final boolean recoverOnReconnect = true;
 
     /**
+     * Maximum number of queue bindings allowed per connection.
+     */
+    public static final int MAX_QUEUES_PER_CONNECTION = 10;
+
+    /**
      * Represents a single RabbitMQ queue + routing-key pair.
      */
     @Data
@@ -132,6 +137,11 @@ public class SDKOptions {
         Objects.requireNonNull(queueBindings, "queueBindings must not be null");
         if (queueBindings.isEmpty()) {
             throw new IllegalArgumentException("queueBindings must not be empty");
+        }
+        if (queueBindings.size() > MAX_QUEUES_PER_CONNECTION) {
+            throw new IllegalArgumentException(
+                "Cannot bind more than " + MAX_QUEUES_PER_CONNECTION
+                    + " queues per connection. Specified: " + queueBindings.size());
         }
         // Validate each QueueBinding
         queueBindings.forEach(QueueBinding::validate);

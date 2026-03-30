@@ -119,7 +119,8 @@ public class EventHandler implements AutoCloseable {
             List<FixtureMatch> recoveredMatches = Collections.emptyList();
 
             try {
-                boolean recover = SDKConfig.getInstance().getOptions().isRecoverOnReconnect();
+                boolean recover = feed != null ? feed.isRecoverOnReconnect()
+                    : SDKConfig.getInstance().getOptions().isRecoverOnReconnect();
                 if (recover && downAt != null) {
                     recoveredMarkets = MatchesClient.recoverMarkets(downAt.toString());
                     recoveredMatches = MatchesClient.fetchMatchesRange(downAt.toString(), up.toString());

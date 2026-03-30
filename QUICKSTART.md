@@ -209,6 +209,45 @@ public class FetchMatch {
 }
 ```
 
+## Multiple Connections
+
+The SDK supports up to 10 concurrent connections, each with its own queues. This is useful for splitting traffic (e.g., markets on one connection, fixtures on another).
+
+```java
+import java.util.List;
+
+// Global config (shared credentials)
+SDKConfig.setOptions(options);
+
+// Connection 1: markets — with recovery enabled
+List<SDKOptions.QueueBinding> marketsBindings = List.of(
+    SDKOptions.QueueBinding.builder()
+        .queueName("markets-queue")
+        .routingKey("*.*.*.markets.#")
+        .build()
+);
+EventHandler marketsHandler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
+marketsFeed.connect(msg -> { /* process markets */ });
+
+// Connection 2: fixtures — recovery disabled (connection 1 handles it)
+List<SDKOptions.QueueBinding> fixtureBindings = List.of(
+    SDKOptions.QueueBinding.builder()
+        .queueName("fixtures-queue")
+        .routingKey("*.*.*.fixture.#")
+        .build()
+);
+EventHandler fixturesHandler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixtureBindings, false);
+fixturesFeed.connect(msg -> { /* process fixtures */ });
+```
+
+**Key points:**
+- Each connection has its own `EventHandler` and `RabbitMQFeed`
+- Set `recoverOnReconnect` to `true` on **only one** connection to avoid redundant recovery API calls
+- Max 10 connections, max 10 queues per connection
+- See [MultiConnectionExample.java](src/main/java/com/pandascore/sdk/examples/MultiConnectionExample.java) for a full example
+
 ## Configuration Options
 
 See [README.md](README.md#configuration-options) for all available configuration options.

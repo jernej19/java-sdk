@@ -37,6 +37,11 @@ public class SDKConfig {
         if (options.getQueueBindings().isEmpty()) {
             throw new NullPointerException("queueBindings must not be empty");
         }
+        if (options.getQueueBindings().size() > SDKOptions.MAX_QUEUES_PER_CONNECTION) {
+            throw new IllegalArgumentException(
+                "Cannot bind more than " + SDKOptions.MAX_QUEUES_PER_CONNECTION
+                    + " queues per connection. Specified: " + options.getQueueBindings().size());
+        }
         instance = new SDKConfig(options);
     }
 

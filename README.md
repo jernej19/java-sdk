@@ -188,12 +188,12 @@ SDKOptions options = SDKOptions.builder()
 | `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | REST API base URL |
 | `americanOdds` | boolean | `false` | Compute American odds (+100, -200) |
 | `fractionalOdds` | boolean | `false` | Compute fractional odds (3/2, 8/13) |
-| `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection |
+| `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection (global default) |
 | `alwaysLogPayload` | boolean | `false` | Log all payloads at INFO level |
 
 ### Queue Bindings
 
-Control which messages you receive using routing keys:
+Control which messages you receive using routing keys. Each connection supports up to **10 queue bindings**.
 
 ```java
 .queueBinding(
@@ -211,6 +211,105 @@ Messages use the format: `{version}.{videogame_slug}.{event_type}.{event_id}.{ty
 **Recommendation:**
 - Use `#` to receive all messages and filter in your application code based on the `type` field
 - This provides maximum flexibility and ensures you don't miss any updates
+
+## 🔗 Multiple Connections
+
+The SDK supports up to **10 concurrent AMQP connections**, each with its own queue bindings (up to **10 queues per connection**). This lets you split traffic across dedicated connections for better isolation and throughput.
+
+### Creating Multiple Connections
+
+Each `RabbitMQFeed` instance represents a separate AMQP connection. Pass per-connection queue bindings via the constructor:
+
+```java
+// 1. Configure global SDK settings (shared by all connections)
+SDKConfig.setOptions(options);
+
+// 2. Connection #1: markets only — with recovery enabled
+List<SDKOptions.QueueBinding> marketsBindings = List.of(
+    SDKOptions.QueueBinding.builder()
+        .queueName("markets-queue")
+        .routingKey("*.*.*.markets.#")
+        .build()
+);
+
+EventHandler marketsHandler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
+marketsFeed.connect(marketsMessage -> { /* process markets */ });
+
+// 3. Connection #2: fixtures + scoreboards — no recovery
+List<SDKOptions.QueueBinding> fixturesBindings = List.of(
+    SDKOptions.QueueBinding.builder()
+        .queueName("fixtures-queue")
+        .routingKey("*.*.*.fixture.#")
+        .build(),
+    SDKOptions.QueueBinding.builder()
+        .queueName("scoreboards-queue")
+        .routingKey("*.*.*.scoreboard.#")
+        .build()
+);
+
+EventHandler fixturesHandler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings, false);
+fixturesFeed.connect(fixturesMessage -> { /* process fixtures/scoreboards */ });
+
+// Monitor active connections
+System.out.println("Active: " + RabbitMQFeed.getActiveConnectionCount());
+```
+
+### Per-Connection Recovery (`recoverOnReconnect`)
+
+When a connection drops and reconnects, the SDK can automatically call recovery APIs (`recoverMarkets` + `fetchMatchesRange`) to fetch missed data. With multiple connections, **you should enable recovery on only one connection** to avoid redundant API calls:
+
+```java
+// The 3-argument constructor: RabbitMQFeed(handler, queueBindings, recoverOnReconnect)
+
+// Primary connection — handles recovery
+RabbitMQFeed primary = new RabbitMQFeed(handler1, bindings1, true);
+
+// Secondary connections — skip recovery (primary handles it)
+RabbitMQFeed secondary = new RabbitMQFeed(handler2, bindings2, false);
+
+// Uses global SDKOptions.recoverOnReconnect setting (default: true)
+RabbitMQFeed defaultFeed = new RabbitMQFeed(handler3, bindings3, null);
+```
+
+| `recoverOnReconnect` value | Behavior |
+|---|---|
+| `true` | Always calls recovery APIs on reconnect |
+| `false` | Never calls recovery APIs on reconnect |
+| `null` (or omitted) | Falls back to the global `SDKOptions.recoverOnReconnect` setting |
+
+> **Important**: If you run 10 connections all with `recoverOnReconnect=true` (the default), a network blip causes 10 identical recovery API calls. Set `recoverOnReconnect=false` on connections that don't need recovery data.
+
+### Limits
+
+| Resource | Limit | Enforcement |
+|---|---|---|
+| Concurrent connections | 10 | Hard limit — `IllegalStateException` if exceeded |
+| Queues per connection | 10 | Validated at construction time |
+
+### Cleanup
+
+Always close feeds when done to release connections:
+
+```java
+// try-with-resources
+try (RabbitMQFeed feed = new RabbitMQFeed(handler, bindings, false)) {
+    feed.connect(sink);
+    // ...
+}
+
+// Or explicit close
+feed.close();
+
+// Or shutdown hook
+Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+    marketsFeed.close();
+    fixturesFeed.close();
+}));
+```
+
+See [MultiConnectionExample.java](src/main/java/com/pandascore/sdk/examples/MultiConnectionExample.java) for a complete working example.
 
 ## 🔌 API Reference
 
@@ -318,7 +417,8 @@ EventHandler handler = new EventHandler(event -> {
 - **Customer callback timing**: You receive disconnection immediately, but reconnection **only after recovery completes**
 - **Message buffering**: During recovery, incoming messages are buffered internally to prevent race conditions
 - **Heartbeat detection**: Heartbeat messages are identified by having an `at` field and no `type` field
-- Set `recoverOnReconnect(false)` to disable automatic recovery and handle it manually
+- **Disabling recovery**: Set `recoverOnReconnect(false)` in `SDKOptions` (global) or per-connection via `new RabbitMQFeed(handler, bindings, false)` to disable automatic recovery
+- **Multiple connections**: With multiple connections, enable recovery on **only one** connection to avoid redundant API calls. See [Multiple Connections](#-multiple-connections) for details
 
 ### Example Log Output
 
