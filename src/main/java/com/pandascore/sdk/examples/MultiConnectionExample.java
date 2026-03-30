@@ -37,7 +37,9 @@ public class MultiConnectionExample {
 
         SDKConfig.setOptions(options);
 
-        // 2. Create first connection — markets only
+        // 2. Create first connection — markets only, WITH recovery enabled
+        //    Only ONE connection should have recoverOnReconnect=true to avoid
+        //    redundant recovery API calls across multiple connections.
         List<SDKOptions.QueueBinding> marketsBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("markets-queue")
@@ -49,13 +51,14 @@ public class MultiConnectionExample {
             logEvent("markets-feed", event);
         });
 
-        RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings);
+        RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
         marketsFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
             System.out.println("[markets-feed] Received: " + json.get("type").asText());
         });
 
-        // 3. Create second connection — fixtures and scoreboards
+        // 3. Create second connection — fixtures and scoreboards, NO recovery
+        //    Recovery is disabled on this connection since connection #1 handles it.
         List<SDKOptions.QueueBinding> fixturesBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("fixtures-queue")
@@ -71,7 +74,7 @@ public class MultiConnectionExample {
             logEvent("fixtures-feed", event);
         });
 
-        RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings);
+        RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings, false);
         fixturesFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
             System.out.println("[fixtures-feed] Received: " + json.get("type").asText());

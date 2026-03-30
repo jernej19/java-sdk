@@ -69,6 +69,8 @@ public final class RabbitMQFeed implements AutoCloseable {
 
     // Per-connection queue bindings (if provided, overrides global config)
     private final List<SDKOptions.QueueBinding> queueBindings;
+    // Per-connection recovery flag (if null, falls back to global config)
+    private final Boolean recoverOnReconnect;
 
     // Recovery state: when true, buffer messages instead of processing them
     private volatile boolean recovering = false;
@@ -79,12 +81,12 @@ public final class RabbitMQFeed implements AutoCloseable {
 
     /**
      * Constructs a new RabbitMQFeed with the given EventHandler.
-     * Uses queue bindings from the global SDKConfig.
+     * Uses queue bindings and recovery setting from the global SDKConfig.
      *
      * @param handler handles heartbeat and disconnection events
      */
     public RabbitMQFeed(EventHandler handler) {
-        this(handler, null);
+        this(handler, null, null);
     }
 
     /**
@@ -96,7 +98,26 @@ public final class RabbitMQFeed implements AutoCloseable {
      * @throws IllegalArgumentException if queueBindings is empty or exceeds {@link SDKOptions#MAX_QUEUES_PER_CONNECTION}
      */
     public RabbitMQFeed(EventHandler handler, List<SDKOptions.QueueBinding> queueBindings) {
+        this(handler, queueBindings, null);
+    }
+
+    /**
+     * Constructs a new RabbitMQFeed with the given EventHandler,
+     * per-connection queue bindings, and per-connection recovery setting.
+     * <p>
+     * In a multi-connection setup, only one connection should have
+     * {@code recoverOnReconnect=true} to avoid redundant recovery API calls.
+     *
+     * @param handler              handles heartbeat and disconnection events
+     * @param queueBindings        queue bindings for this connection, or null to use global config
+     * @param recoverOnReconnect   whether to trigger recovery APIs on reconnect for this connection,
+     *                             or null to use the global {@link SDKOptions#isRecoverOnReconnect()} setting
+     * @throws IllegalArgumentException if queueBindings is empty or exceeds {@link SDKOptions#MAX_QUEUES_PER_CONNECTION}
+     */
+    public RabbitMQFeed(EventHandler handler, List<SDKOptions.QueueBinding> queueBindings,
+                        Boolean recoverOnReconnect) {
         this.handler = handler;
+        this.recoverOnReconnect = recoverOnReconnect;
         if (queueBindings != null) {
             if (queueBindings.isEmpty()) {
                 throw new IllegalArgumentException("queueBindings must not be empty");
@@ -111,6 +132,16 @@ public final class RabbitMQFeed implements AutoCloseable {
         } else {
             this.queueBindings = null;
         }
+    }
+
+    /**
+     * Returns whether this connection should trigger recovery APIs on reconnect.
+     * Uses the per-connection setting if provided, otherwise falls back to the global config.
+     *
+     * @return true if recovery should be triggered on reconnect
+     */
+    public boolean isRecoverOnReconnect() {
+        return recoverOnReconnect != null ? recoverOnReconnect : opts.isRecoverOnReconnect();
     }
 
     /**

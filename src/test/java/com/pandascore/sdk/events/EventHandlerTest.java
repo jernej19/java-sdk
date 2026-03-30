@@ -5,6 +5,7 @@ import com.pandascore.sdk.config.SDKOptions;
 import com.pandascore.sdk.http.MatchesClient;
 import com.pandascore.sdk.model.feed.fixtures.FixtureMatch;
 import com.pandascore.sdk.model.feed.markets.MarketsRecoveryMatch;
+import com.pandascore.sdk.rmq.RabbitMQFeed;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -495,6 +496,94 @@ class EventHandlerTest {
 
             handler.heartbeat();
 
+            mc.verify(() -> MatchesClient.recoverMarkets(anyString()), times(1));
+            mc.verify(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()), times(1));
+        }
+    }
+
+    // ============================================================
+    //  9b. Per-connection recoverOnReconnect via RabbitMQFeed
+    // ============================================================
+
+    @Test
+    @DisplayName("Per-connection recoverOnReconnect=false overrides global true, skips recovery APIs")
+    void perConnectionRecoverFalse_overridesGlobalTrue_skipsAPIs() throws Exception {
+        // Global config has recoverOnReconnect=true (default from setUp)
+        // Create a feed with per-connection recoverOnReconnect=false
+        RabbitMQFeed feedWithNoRecovery = new RabbitMQFeed(handler, null, false);
+        // Simulate connect() wiring the feed to the handler
+        handler.setFeed(feedWithNoRecovery);
+
+        setDisconnected(true);
+        setDownAt(Instant.now().minus(Duration.ofSeconds(30)));
+
+        try (MockedStatic<MatchesClient> mc = mockStatic(MatchesClient.class)) {
+            handler.heartbeat();
+
+            // Recovery APIs should NOT be called because per-connection flag is false
+            mc.verify(() -> MatchesClient.recoverMarkets(anyString()), never());
+            mc.verify(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()), never());
+        }
+
+        // Reconnection event still fires with empty recovery data
+        assertEquals(1, events.size());
+        assertEquals(ConnectionEvent.CODE_RECONNECTION, events.get(0).getCode());
+        assertTrue(events.get(0).getRecoveryData().getMarkets().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Per-connection recoverOnReconnect=true calls recovery APIs even if global is false")
+    void perConnectionRecoverTrue_overridesGlobalFalse_callsAPIs() throws Exception {
+        // Set global to false
+        SDKConfig.setOptions(SDKOptions.builder()
+            .apiToken("test-token")
+            .companyId(1)
+            .email("test@test.com")
+            .password("pass")
+            .apiBaseUrl("http://localhost:9999")
+            .recoverOnReconnect(false)
+            .queueBinding(SDKOptions.QueueBinding.builder()
+                .queueName("q").routingKey("r").build())
+            .build());
+
+        RabbitMQFeed feedWithRecovery = new RabbitMQFeed(handler, null, true);
+        handler.setFeed(feedWithRecovery);
+
+        setDisconnected(true);
+        setDownAt(Instant.now().minus(Duration.ofSeconds(30)));
+
+        try (MockedStatic<MatchesClient> mc = mockStatic(MatchesClient.class)) {
+            mc.when(() -> MatchesClient.recoverMarkets(anyString()))
+                .thenReturn(Collections.emptyList());
+            mc.when(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()))
+                .thenReturn(Collections.emptyList());
+
+            handler.heartbeat();
+
+            mc.verify(() -> MatchesClient.recoverMarkets(anyString()), times(1));
+            mc.verify(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()), times(1));
+        }
+    }
+
+    @Test
+    @DisplayName("Per-connection recoverOnReconnect=null falls back to global config")
+    void perConnectionRecoverNull_fallsBackToGlobal() throws Exception {
+        // Global config has recoverOnReconnect=true (default)
+        RabbitMQFeed feedWithDefault = new RabbitMQFeed(handler, null, null);
+        handler.setFeed(feedWithDefault);
+
+        setDisconnected(true);
+        setDownAt(Instant.now().minus(Duration.ofSeconds(30)));
+
+        try (MockedStatic<MatchesClient> mc = mockStatic(MatchesClient.class)) {
+            mc.when(() -> MatchesClient.recoverMarkets(anyString()))
+                .thenReturn(Collections.emptyList());
+            mc.when(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()))
+                .thenReturn(Collections.emptyList());
+
+            handler.heartbeat();
+
+            // Should call because global default is true
             mc.verify(() -> MatchesClient.recoverMarkets(anyString()), times(1));
             mc.verify(() -> MatchesClient.fetchMatchesRange(anyString(), anyString()), times(1));
         }
