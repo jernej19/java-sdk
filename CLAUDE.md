@@ -117,9 +117,13 @@ SDKConfig.setOptions(options);
 // 2. Create event handler for disconnection/reconnection events
 EventHandler handler = new EventHandler(event -> { /* handle events */ });
 
-// 3. Connect and start consuming
+// 3. Connect and start consuming (single connection)
 RabbitMQFeed feed = new RabbitMQFeed(handler);
 feed.connect(message -> { /* handle JsonNode messages */ });
+
+// Or: multiple connections with per-connection queue bindings and recovery control
+RabbitMQFeed feed1 = new RabbitMQFeed(handler1, marketsBindings, true);   // recovery enabled
+RabbitMQFeed feed2 = new RabbitMQFeed(handler2, fixtureBindings, false);  // recovery disabled
 ```
 
 ### Message Processing Flow
@@ -188,9 +192,11 @@ AMQP reconnect (automatic, exponential backoff: 5s × attempt, max 60s)
 ### `com.pandascore.sdk.rmq`
 
 - `RabbitMQFeed` implements `AutoCloseable` — always close in finally or try-with-resources.
+- Three constructors: `(handler)`, `(handler, queueBindings)`, `(handler, queueBindings, recoverOnReconnect)`. The per-connection `recoverOnReconnect` (`Boolean`) overrides the global config when non-null.
 - `automaticRecoveryEnabled = false` on the AMQP factory — reconnection is handled manually.
 - `recovering` (volatile boolean) and `recoveryBuffer` (ConcurrentLinkedQueue) guard the recovery window.
 - `startRecovery()` / `endRecovery()` are public and called by `EventHandler`.
+- `isRecoverOnReconnect()` returns per-connection value if set, else global default.
 
 ### `com.pandascore.sdk.model`
 
@@ -251,7 +257,7 @@ Run tests:
 | `password` | String | — | Yes | AMQP login password |
 | `feedHost` | String | `trading-feed.pandascore.co` | No | AMQP broker hostname |
 | `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | No | REST base URL |
-| `queueBindings` | List\<QueueBinding\> | — | Yes (non-empty) | Queue + routing key pairs |
+| `queueBindings` | List\<QueueBinding\> | — | Yes (non-empty, max 10) | Queue + routing key pairs |
 | `alwaysLogPayload` | boolean | `false` | No | Log payloads at INFO (else DEBUG) |
 | `americanOdds` | boolean | `false` | No | Include American odds fields |
 | `fractionalOdds` | boolean | `false` | No | Include fractional odds fields |
@@ -288,7 +294,11 @@ Run tests:
 
 7. **Routing key structure**: `...<eventType>.<eventId>.<action>` — the consumer parses `parts[length-4]`, `parts[length-3]`, `parts[length-1]`.
 
-8. **Connection limit warning**: A global `AtomicInteger` counter tracks active AMQP connections across all `RabbitMQFeed` instances. When the count reaches `MAX_CONNECTIONS` (10), the SDK logs a WARN-level message advising the user to close unused feeds. The SDK does **not** hard-block new connections — it only warns. `RabbitMQFeed.getActiveConnectionCount()` exposes the current count for monitoring. Old connections are automatically closed before reconnecting to prevent leaks.
+8. **Connection limit enforcement**: A global `AtomicInteger` counter tracks active AMQP connections across all `RabbitMQFeed` instances. When the count exceeds `MAX_CONNECTIONS` (10), the SDK throws `IllegalStateException` and cleans up the connection. `RabbitMQFeed.getActiveConnectionCount()` exposes the current count for monitoring. Old connections are automatically closed before reconnecting to prevent leaks.
+
+9. **Per-connection queue bindings**: `RabbitMQFeed(handler, queueBindings)` and `RabbitMQFeed(handler, queueBindings, recoverOnReconnect)` constructors allow per-connection queue bindings (max 10 per connection, validated via `SDKOptions.MAX_QUEUES_PER_CONNECTION`). When `queueBindings` is `null`, falls back to the global `SDKOptions` bindings.
+
+10. **Per-connection recovery control**: The `recoverOnReconnect` flag can be set per-connection via the 3-arg `RabbitMQFeed` constructor. When `null`, falls back to the global `SDKOptions.isRecoverOnReconnect()`. `EventHandler.heartbeat()` reads recovery preference from the associated feed's `isRecoverOnReconnect()` method, not from the global config. In multi-connection setups, only one connection should have recovery enabled to avoid redundant API calls.
 
 ---
 

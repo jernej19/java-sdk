@@ -4,11 +4,16 @@ Production-ready example demonstrating real-time esports odds integration.
 
 ## 📋 Overview
 
-**BasicExample.java** - Comprehensive example showing all SDK capabilities:
+**BasicExample.java** - Single-connection example showing all SDK capabilities:
 - Markets (odds updates)
 - Fixtures (match updates)
 - Scoreboards (live scores)
 - Disconnection/reconnection handling
+
+**MultiConnectionExample.java** - Multi-connection example demonstrating:
+- Multiple concurrent AMQP connections with different queue bindings
+- Per-connection recovery control (`recoverOnReconnect`)
+- Proper cleanup via shutdown hooks
 
 ---
 
@@ -143,6 +148,33 @@ EventHandler eventHandler = new EventHandler(event -> {
 - **Code 101 (reconnection)** fires AFTER automatic recovery completes → Reopen markets
 - Recovery data (markets + matches) is included in the reconnection event
 - Recovery automatically fetches missed markets and match updates
+
+---
+
+## 🔗 MultiConnectionExample - Multiple Feeds
+
+**File**: `MultiConnectionExample.java`
+
+**Perfect for**: Splitting traffic across dedicated connections
+
+**What it does**:
+- Creates two AMQP connections with different queue bindings
+- Connection 1: markets only, with recovery enabled
+- Connection 2: fixtures + scoreboards, recovery disabled
+- Demonstrates per-connection `recoverOnReconnect` flag
+
+**Key Points**:
+- Only **one connection** should have `recoverOnReconnect=true` to avoid redundant recovery API calls
+- Each connection has its own `EventHandler` for independent disconnection/reconnection tracking
+- Max 10 connections, max 10 queues per connection
+
+```java
+// Connection 1: markets — handles recovery
+RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
+
+// Connection 2: fixtures — no recovery
+RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixtureBindings, false);
+```
 
 ---
 

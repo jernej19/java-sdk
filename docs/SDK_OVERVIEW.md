@@ -23,7 +23,7 @@ Typed domain objects under `model.feed.*` representing the JSON payloads emitted
 
 ### `rmq`
 RabbitMQ integration:
-- **`RabbitMQFeed`** – connects to the AMQP feed using the settings from `SDKOptions`, consumes messages from declared queues, handles reconnection with exponential backoff and exposes `connect(Consumer)` and `close()`.
+- **`RabbitMQFeed`** – connects to the AMQP feed using the settings from `SDKOptions`, consumes messages from declared queues, handles reconnection with exponential backoff and exposes `connect(Consumer)` and `close()`. Supports up to 10 concurrent connections with up to 10 queues each.
 
 ## Typical Initialisation Flow
 
@@ -33,9 +33,29 @@ RabbitMQ integration:
 4. Create a `RabbitMQFeed` with that handler and invoke `connect()` providing a consumer that processes each JSON event.
 5. Use `MatchesClient` for explicit recovery or fetching of matches when needed.
 
+## Multiple Connections
+
+The SDK supports up to 10 concurrent `RabbitMQFeed` instances, each with its own queue bindings and independent `EventHandler`. This allows splitting message types across dedicated connections.
+
+**Constructors:**
+- `RabbitMQFeed(handler)` — uses queue bindings and recovery setting from global `SDKOptions`
+- `RabbitMQFeed(handler, queueBindings)` — per-connection queue bindings, global recovery setting
+- `RabbitMQFeed(handler, queueBindings, recoverOnReconnect)` — per-connection queue bindings and per-connection recovery flag (`true`/`false`/`null` for global default)
+
+**Per-connection recovery:**
+Each connection independently detects disconnection and triggers recovery. When running multiple connections, set `recoverOnReconnect=false` on all connections except one to avoid redundant recovery API calls. The designated recovery connection will call `recoverMarkets` and `fetchMatchesRange`; other connections simply reconnect and resume consuming.
+
+**Limits:**
+- Max 10 concurrent connections (hard-enforced, throws `IllegalStateException`)
+- Max 10 queue bindings per connection (validated at construction time)
+
+## Key Public API
+
 The main public methods customers typically interact with are:
 - `SDKConfig.setOptions(SDKOptions)` and `SDKConfig.getInstance().getOptions()`.
 - `RabbitMQFeed.connect(Consumer)` and `RabbitMQFeed.close()`.
+- `RabbitMQFeed.getActiveConnectionCount()` — monitor current connection count.
+- `RabbitMQFeed.isRecoverOnReconnect()` — check per-connection recovery setting.
 - `EventHandler.heartbeat()`, `EventHandler.resetTimer()`, `EventHandler.handleDisconnection()` and `EventHandler.close()`.
 - `MatchesClient.recoverMarkets(String)` and `MatchesClient.fetchMatchesRange(String, String)`.
 
