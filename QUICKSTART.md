@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation("co.pandascore:pandascore-sdk-java:1.1.0")
+    implementation("co.pandascore:pandascore-sdk-java:1.0.0")
 }
 ```
 
@@ -35,7 +35,7 @@ dependencies {
 <dependency>
     <groupId>co.pandascore</groupId>
     <artifactId>pandascore-sdk-java</artifactId>
-    <version>1.1.0</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 

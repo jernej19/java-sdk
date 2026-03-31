@@ -7,7 +7,7 @@ plugins {
 }
 
 group   = "co.pandascore"
-version = "1.1.0"
+version = "1.0.0"
 
 repositories { mavenCentral() }
 
@@ -86,13 +86,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            // Override with GITHUB_REPOSITORY env var for testing on forks
-            // e.g. GITHUB_REPOSITORY=PandaScore/pandascore-sdk-java
-            // Defaults to PandaScore/pandascore-sdk-java for production
-            val repo = providers.environmentVariable("GITHUB_REPOSITORY")
-                .orElse("PandaScore/pandascore-sdk-java")
-                .get()
-            url  = uri("https://maven.pkg.github.com/$repo")
+            url  = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
             credentials {
                 // Set GITHUB_ACTOR and GITHUB_TOKEN in your environment,
                 // or add them to ~/.gradle/gradle.properties as:

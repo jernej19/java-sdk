@@ -4,7 +4,7 @@ Modern Java SDK for consuming live esports odds and match data from PandaScore's
 
 [![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
 [![Build Tool](https://img.shields.io/badge/Build-Gradle-green)](https://gradle.org/)
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.1.0-blue)](https://github.com/PandaScore/pandascore-sdk-java/packages)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.0.0-blue)](https://github.com/PandaScore/pandascore-sdk-java/packages)
 
 ## 🎯 Overview
 
@@ -49,7 +49,7 @@ repositories {
 }
 
 dependencies {
-    implementation("co.pandascore:pandascore-sdk-java:1.1.0")
+    implementation("co.pandascore:pandascore-sdk-java:1.0.0")
 }
 ```
 
@@ -65,7 +65,7 @@ dependencies {
 <dependency>
     <groupId>co.pandascore</groupId>
     <artifactId>pandascore-sdk-java</artifactId>
-    <version>1.1.0</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
