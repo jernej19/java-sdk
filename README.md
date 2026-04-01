@@ -1,44 +1,19 @@
 # PandaScore Java SDK
 
-Modern Java SDK for consuming live esports odds and match data from PandaScore's real-time feed.
+Java SDK for consuming live esports odds and match data from PandaScore's real-time feed.
 
-[![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
-[![Build Tool](https://img.shields.io/badge/Build-Gradle-green)](https://gradle.org/)
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-1.0.0-blue)](https://github.com/PandaScore/pandascore-sdk-java/packages)
+- **Java 17+** required
+- Published to **GitHub Packages** as a Maven dependency
 
-## 🎯 Overview
+## Installation
 
-The PandaScore Java SDK provides a complete solution for integrating esports betting data into your applications. It combines real-time streaming via RabbitMQ with REST API endpoints for data recovery, featuring:
+The SDK is published to GitHub Packages. You need a GitHub token with `read:packages` scope.
 
-- **Real-time odds updates** via AMQPS feed
-- **Automatic reconnection** with smart recovery
-- **HTTP API** for on-demand queries
-- **Production-ready** with extensive logging and error handling
+### Gradle (Kotlin DSL)
 
-## ✨ Features
-
-### Core Functionality
-- 🔄 **RabbitMQ Feed Integration** – Stream live markets, fixtures, and scoreboards
-- 🔌 **Automatic Reconnection** – Detects disconnections and recovers missed data
-- 📊 **Rich Data Models** – Complete type coverage for all message types
-- 🌐 **HTTP Client** – Fetch matches and markets on-demand
-- 📈 **Multiple Odds Formats** – Decimal, American, and Fractional
-
-## 📋 Requirements
-
-- **Java 17** or higher
-- **Gradle** (wrapper included - `./gradlew`)
-- Valid PandaScore API credentials
-
-## 🚀 Quick Start
-
-### 1. Add Dependency
-
-The SDK is published to GitHub Packages. Add the repository and dependency to your project.
-
-**Gradle (`build.gradle.kts`):**
 ```kotlin
 repositories {
+    mavenCentral()
     maven {
         url = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
         credentials {
@@ -53,7 +28,10 @@ dependencies {
 }
 ```
 
-**Maven (`pom.xml`):**
+### Maven
+
+Add the repository to your `pom.xml`:
+
 ```xml
 <repositories>
     <repository>
@@ -69,7 +47,8 @@ dependencies {
 </dependency>
 ```
 
-Add credentials to `~/.m2/settings.xml` (Maven only):
+Add credentials to `~/.m2/settings.xml`:
+
 ```xml
 <settings>
     <servers>
@@ -82,20 +61,25 @@ Add credentials to `~/.m2/settings.xml` (Maven only):
 </settings>
 ```
 
-### 2. Configure Credentials
+## Connecting to the Feed
 
-Edit any example file or create your own:
+### 1. Configure the SDK
+
+Call `SDKConfig.setOptions()` once at startup before creating any connections:
 
 ```java
+import com.pandascore.sdk.config.SDKConfig;
+import com.pandascore.sdk.config.SDKOptions;
+
 SDKOptions options = SDKOptions.builder()
     .apiToken("YOUR_API_TOKEN")
-    .companyId(YOUR_COMPANY_ID)
+    .companyId(12345)
     .email("your-email@example.com")
     .password("your-password")
     .queueBinding(
         SDKOptions.QueueBinding.builder()
             .queueName("my-queue")
-            .routingKey("#")  // All messages
+            .routingKey("#")   // "#" subscribes to all messages
             .build()
     )
     .build();
@@ -103,428 +87,311 @@ SDKOptions options = SDKOptions.builder()
 SDKConfig.setOptions(options);
 ```
 
-### 3. Connect and Receive Odds
+### 2. Create a Connection
+
+Each `RabbitMQFeed` instance opens one AMQP connection. You need an `EventHandler` to receive disconnection/reconnection notifications:
 
 ```java
-ObjectMapper mapper = new ObjectMapper()
-    .registerModule(new JavaTimeModule());
+import com.pandascore.sdk.events.ConnectionEvent;
+import com.pandascore.sdk.events.EventHandler;
+import com.pandascore.sdk.rmq.RabbitMQFeed;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
 EventHandler handler = new EventHandler(event -> {
     if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
-        System.out.println("Disconnected!");
-    } else {
-        System.out.println("Reconnected with " +
-            event.getRecoveryData().getMarkets().size() + " recovered markets");
+        System.out.println("Disconnected - suspend your markets");
+    } else if (event.getCode() == ConnectionEvent.CODE_RECONNECTION) {
+        System.out.println("Reconnected - recovered "
+            + event.getRecoveryData().getMarkets().size() + " markets");
     }
 });
 
 RabbitMQFeed feed = new RabbitMQFeed(handler);
 feed.connect(message -> {
     JsonNode json = (JsonNode) message;
+    String type = json.get("type").asText();
 
-    if ("markets".equals(json.get("type").asText())) {
-        MarketsMessage markets = mapper.treeToValue(json, MarketsMessage.class);
-
-        markets.getMarkets().forEach(market -> {
-            System.out.println("Market: " + market.getName());
-            market.getSelections().forEach(sel -> {
-                System.out.printf("  %s: %.2f%n",
-                    sel.getName(),
-                    sel.getOddsDecimalWithOverround()
-                );
-            });
-        });
+    switch (type) {
+        case "markets" -> {
+            MarketsMessage markets = mapper.treeToValue(json, MarketsMessage.class);
+            // process odds updates
+        }
+        case "fixture" -> {
+            FixtureMessage fixture = mapper.treeToValue(json, FixtureMessage.class);
+            // process match updates
+        }
+        case "scoreboard" -> {
+            // process live scores (game-specific: ScoreboardCs, ScoreboardLol, etc.)
+        }
     }
 });
 ```
 
-### 4. Run Example
+### 3. Closing Connections
 
-If you cloned the repository directly:
-
-```bash
-chmod +x gradlew
-./gradlew run
-```
-
-## 📚 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [QUICKSTART.md](QUICKSTART.md) | Complete setup guide with code examples |
-| [API Documentation](https://pandaodds.readme.io/) | Official PandaScore API documentation |
-
-## 🎮 Example
-
-The SDK includes a comprehensive example showing all core functionality:
-
-**BasicExample.java** - Production-ready template that:
-- Monitors all message types (markets, fixtures, scoreboards)
-- Handles disconnection/reconnection events
-- Demonstrates proper JSON parsing and error handling
-- Includes RabbitMQ feed connection setup
-- Relies on INFO logs for message visibility
-
-See [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md) for detailed usage.
-
-## ⚙️ Configuration Options
-
-### Required Fields
+Always close feeds when your application shuts down:
 
 ```java
-SDKOptions options = SDKOptions.builder()
-    .apiToken("...")        // REST API authentication token
-    .companyId(12345)       // Your PandaScore account ID
-    .email("...")           // Account email
-    .password("...")        // Account password
-    .queueBinding(...)      // At least one queue binding
+// Option A: try-with-resources
+try (RabbitMQFeed feed = new RabbitMQFeed(handler)) {
+    feed.connect(sink);
+    Thread.currentThread().join();
+}
+
+// Option B: shutdown hook
+Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+    feed.close();
+}));
 ```
 
-### Optional Configuration
+## Multiple Connections
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `feedHost` | String | `trading-feed.pandascore.co` | RabbitMQ hostname |
-| `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | REST API base URL |
-| `americanOdds` | boolean | `false` | Compute American odds (+100, -200) |
-| `fractionalOdds` | boolean | `false` | Compute fractional odds (3/2, 8/13) |
-| `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection (global default) |
-| `alwaysLogPayload` | boolean | `false` | Log all payloads at INFO level |
+The SDK supports up to **10 concurrent AMQP connections**, each with its own queue bindings (up to 10 queues per connection). This is how you run separate services (e.g., a logger and a market maker) from the same application or across separate deployments.
 
-### Queue Bindings
+**Each connection needs its own `EventHandler` and `RabbitMQFeed`.**
 
-Control which messages you receive using routing keys. Each connection supports up to **10 queue bindings**.
+### Example: Two Connections (Markets + Fixtures)
 
 ```java
-.queueBinding(
-    SDKOptions.QueueBinding.builder()
-        .queueName("my-queue")
-        .routingKey("#")  // All messages
-        .build()
-)
-```
-
-**Routing Key Format:**
-
-Messages use the format: `{version}.{videogame_slug}.{event_type}.{event_id}.{type}.{action}`
-
-**Recommendation:**
-- Use `#` to receive all messages and filter in your application code based on the `type` field
-- This provides maximum flexibility and ensures you don't miss any updates
-
-## 🔗 Multiple Connections
-
-The SDK supports up to **10 concurrent AMQP connections**, each with its own queue bindings (up to **10 queues per connection**). This lets you split traffic across dedicated connections for better isolation and throughput.
-
-### Creating Multiple Connections
-
-Each `RabbitMQFeed` instance represents a separate AMQP connection. Pass per-connection queue bindings via the constructor:
-
-```java
-// 1. Configure global SDK settings (shared by all connections)
+// Global config (shared credentials, called once)
 SDKConfig.setOptions(options);
 
-// 2. Connection #1: markets only — with recovery enabled
+// --- Connection 1: Markets (with recovery) ---
 List<SDKOptions.QueueBinding> marketsBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("markets-queue")
-        .routingKey("*.*.*.markets.#")
+        .routingKey("#")
         .build()
 );
-
 EventHandler marketsHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
-marketsFeed.connect(marketsMessage -> { /* process markets */ });
+marketsFeed.connect(msg -> { /* process markets */ });
 
-// 3. Connection #2: fixtures + scoreboards — no recovery
+// --- Connection 2: Fixtures (no recovery) ---
 List<SDKOptions.QueueBinding> fixturesBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("fixtures-queue")
-        .routingKey("*.*.*.fixture.#")
-        .build(),
-    SDKOptions.QueueBinding.builder()
-        .queueName("scoreboards-queue")
-        .routingKey("*.*.*.scoreboard.#")
+        .routingKey("#")
         .build()
 );
-
 EventHandler fixturesHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings, false);
-fixturesFeed.connect(fixturesMessage -> { /* process fixtures/scoreboards */ });
+fixturesFeed.connect(msg -> { /* process fixtures */ });
 
-// Monitor active connections
-System.out.println("Active: " + RabbitMQFeed.getActiveConnectionCount());
+// Check how many connections are active
+System.out.println("Active connections: " + RabbitMQFeed.getActiveConnectionCount());
 ```
 
-### Per-Connection Recovery (`recoverOnReconnect`)
-
-When a connection drops and reconnects, the SDK can automatically call recovery APIs (`recoverMarkets` + `fetchMatchesRange`) to fetch missed data. With multiple connections, **you should enable recovery on only one connection** to avoid redundant API calls:
+### Constructor Variants
 
 ```java
-// The 3-argument constructor: RabbitMQFeed(handler, queueBindings, recoverOnReconnect)
+// Uses global queue bindings and recovery setting from SDKOptions
+new RabbitMQFeed(handler);
 
-// Primary connection — handles recovery
+// Per-connection queue bindings, global recovery setting
+new RabbitMQFeed(handler, queueBindings);
+
+// Per-connection queue bindings AND per-connection recovery setting
+new RabbitMQFeed(handler, queueBindings, true);   // recovery enabled
+new RabbitMQFeed(handler, queueBindings, false);  // recovery disabled
+new RabbitMQFeed(handler, queueBindings, null);   // use global default
+```
+
+### Running from Separate Services / Docker Containers
+
+If your logger and market maker run in **separate JVMs** (e.g., different Docker containers), each service creates its own `SDKConfig` and `RabbitMQFeed` independently. They share the same PandaScore credentials but must use **different queue names** to avoid consuming each other's messages:
+
+```java
+// --- Service A: Market Maker ---
+SDKConfig.setOptions(SDKOptions.builder()
+    .apiToken("YOUR_TOKEN").companyId(12345)
+    .email("you@example.com").password("pass")
+    .queueBinding(SDKOptions.QueueBinding.builder()
+        .queueName("market-maker-queue")   // unique queue name
+        .routingKey("#").build())
+    .build());
+
+EventHandler handler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed feed = new RabbitMQFeed(handler);
+feed.connect(msg -> { /* market maker logic */ });
+```
+
+```java
+// --- Service B: Logger (separate JVM / Docker) ---
+SDKConfig.setOptions(SDKOptions.builder()
+    .apiToken("YOUR_TOKEN").companyId(12345)
+    .email("you@example.com").password("pass")
+    .queueBinding(SDKOptions.QueueBinding.builder()
+        .queueName("logger-queue")         // different queue name
+        .routingKey("#").build())
+    .build());
+
+EventHandler handler = new EventHandler(event -> { /* ... */ });
+RabbitMQFeed feed = new RabbitMQFeed(handler);
+feed.connect(msg -> { /* logging logic */ });
+```
+
+**Important**: If two services use the **same queue name**, RabbitMQ delivers each message to only one consumer (round-robin). Use distinct queue names so both services receive all messages independently.
+
+## Recovery on Reconnect
+
+When a connection drops and reconnects, the SDK can automatically call recovery APIs to fetch data you missed during the downtime. This is controlled by the `recoverOnReconnect` flag.
+
+### How Recovery Works
+
+1. Connection drops (detected after ~30s of missed heartbeats)
+2. SDK emits `ConnectionEvent(code=100)` -- **you should suspend/close your markets**
+3. SDK reconnects automatically with exponential backoff
+4. First heartbeat arrives on the new connection
+5. SDK buffers incoming messages and calls recovery APIs:
+   - `recoverMarkets(downtime)` -- fetches updated market states
+   - `fetchMatchesRange(downtime, uptime)` -- fetches modified matches
+6. SDK replays buffered messages in order
+7. SDK emits `ConnectionEvent(code=101)` with `RecoveryData` -- **you can reopen markets**
+
+### Controlling Recovery per Connection
+
+With multiple connections, **enable recovery on only one connection** to avoid redundant API calls:
+
+```java
+// Primary connection -- handles recovery for the whole system
 RabbitMQFeed primary = new RabbitMQFeed(handler1, bindings1, true);
 
-// Secondary connections — skip recovery (primary handles it)
+// Secondary connections -- skip recovery (primary already handles it)
 RabbitMQFeed secondary = new RabbitMQFeed(handler2, bindings2, false);
-
-// Uses global SDKOptions.recoverOnReconnect setting (default: true)
-RabbitMQFeed defaultFeed = new RabbitMQFeed(handler3, bindings3, null);
+RabbitMQFeed tertiary  = new RabbitMQFeed(handler3, bindings3, false);
 ```
 
 | `recoverOnReconnect` value | Behavior |
 |---|---|
-| `true` | Always calls recovery APIs on reconnect |
-| `false` | Never calls recovery APIs on reconnect |
-| `null` (or omitted) | Falls back to the global `SDKOptions.recoverOnReconnect` setting |
+| `true` | Calls recovery APIs on reconnect |
+| `false` | Skips recovery APIs on reconnect |
+| `null` (or omitted) | Falls back to global `SDKOptions.recoverOnReconnect` (default: `true`) |
 
-> **Important**: If you run 10 connections all with `recoverOnReconnect=true` (the default), a network blip causes 10 identical recovery API calls. Set `recoverOnReconnect=false` on connections that don't need recovery data.
+### Disabling Recovery Globally
+
+If you handle recovery yourself, disable it globally:
+
+```java
+SDKOptions options = SDKOptions.builder()
+    // ... credentials ...
+    .recoverOnReconnect(false)
+    .build();
+```
+
+## Configuration Reference
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `apiToken` | String | REST API authentication token |
+| `companyId` | long | Your PandaScore account ID (must be positive) |
+| `email` | String | Account email (AMQP login) |
+| `password` | String | Account password (AMQP login) |
+| `queueBindings` | List | At least one queue binding (max 10) |
+
+### Optional Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `feedHost` | String | `trading-feed.pandascore.co` | AMQP broker hostname |
+| `apiBaseUrl` | String | `https://api.pandascore.co/betting/matches` | REST API base URL |
+| `recoverOnReconnect` | boolean | `true` | Auto-recover on reconnect (global default) |
+| `prefetchCount` | int | `1` | Max unacked messages per consumer |
+| `americanOdds` | boolean | `false` | Include American odds fields |
+| `fractionalOdds` | boolean | `false` | Include fractional odds fields |
+| `alwaysLogPayload` | boolean | `false` | Log payloads at INFO (otherwise DEBUG) |
 
 ### Limits
 
-| Resource | Limit | Enforcement |
-|---|---|---|
-| Concurrent connections | 10 | Hard limit — `IllegalStateException` if exceeded |
-| Queues per connection | 10 | Validated at construction time |
+| Resource | Limit |
+|----------|-------|
+| Concurrent AMQP connections | 10 (throws `IllegalStateException` if exceeded) |
+| Queue bindings per connection | 10 |
 
-### Cleanup
+## HTTP API
 
-Always close feeds when done to release connections:
-
-```java
-// try-with-resources
-try (RabbitMQFeed feed = new RabbitMQFeed(handler, bindings, false)) {
-    feed.connect(sink);
-    // ...
-}
-
-// Or explicit close
-feed.close();
-
-// Or shutdown hook
-Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-    marketsFeed.close();
-    fixturesFeed.close();
-}));
-```
-
-See [MultiConnectionExample.java](src/main/java/com/pandascore/sdk/examples/MultiConnectionExample.java) for a complete working example.
-
-## 🔌 API Reference
-
-### Streaming API (RabbitMQ)
+The SDK also provides static HTTP methods for on-demand queries and recovery:
 
 ```java
-RabbitMQFeed feed = new RabbitMQFeed(eventHandler);
-feed.connect(message -> {
-    // Process JsonNode message
-});
-```
+import com.pandascore.sdk.http.MatchesClient;
 
-**Message Types:**
-- **Markets** - Odds and betting markets
-- **Fixtures** - Match and tournament information
-- **Scoreboards** - Live scores and game state
-
-### HTTP API (REST)
-
-```java
-// Fetch single match
+// Fetch a single match
 FixtureMatch match = MatchesClient.fetchMatch("123456");
 
 // Fetch all markets for a match
 List<MarketsMessageMarket> markets = MatchesClient.fetchMarkets("123456");
 
-// Recover markets since timestamp
-List<MarketsRecoveryMatch> recovery =
+// Recover markets modified since a timestamp
+List<MarketsRecoveryMatch> recovered =
     MatchesClient.recoverMarkets("2026-01-20T10:00:00Z");
 
-// Fetch matches in time range
+// Fetch matches modified in a time range
 List<FixtureMatch> matches =
     MatchesClient.fetchMatchesRange("2026-01-20T10:00:00Z", "2026-01-20T11:00:00Z");
 ```
 
-## 📦 Data Models
+These methods require `SDKConfig.setOptions()` to have been called first.
 
-### Complete Type Coverage
+## Message Types
 
-The SDK includes comprehensive data models for all message types:
+The feed delivers three types of messages, identified by the `type` field in the JSON:
 
-**Markets** (`com.pandascore.sdk.model.feed.markets`)
-- `MarketsMessage` - Top-level markets update
-- `MarketsMessageMarket` - Individual market with 50+ fields
-- `MarketsMessageSelection` - Selection with odds in all formats
-- `MarketAction` - Action enum (created, odds_changed, settled, etc.)
+| Type | Model Class | Description |
+|------|-------------|-------------|
+| `markets` | `MarketsMessage` | Odds and betting market updates |
+| `fixture` | `FixtureMessage` | Match and tournament information |
+| `scoreboard` | Game-specific (`ScoreboardCs`, `ScoreboardLol`, etc.) | Live scores and game state |
 
-**Fixtures** (`com.pandascore.sdk.model.feed.fixtures`)
-- `FixtureMessage` - Match/tournament updates
-- `FixtureMatch` - Complete match details (37 fields)
-- `League`, `Tournament`, `Videogame` - Tournament hierarchy
-- `Game`, `GameMap`, `GameWinner` - Individual game details
-- `Player`, `FixtureTeam`, `FixtureOpponent` - Participant data
-- `Live`, `StreamInfo`, `Streams` - Streaming information
-- `MatchStatus`, `MatchType`, `GameStatus` - Status enums
+### Routing Keys
 
-**Scoreboards** (`com.pandascore.sdk.model.feed.scoreboard`)
-- `ScoreboardEsoccer`, `ScoreboardEbasketball`, `ScoreboardEhockey`
-- `ScoreboardCs`, `ScoreboardDota2`, `ScoreboardLol`, `ScoreboardValorant`
-- Timer objects with pause state and period tracking
+Messages use the format: `{version}.{videogame_slug}.{event_type}.{event_id}.{type}.{action}`
 
-## 🔄 Automatic Recovery & Disconnection Handling
+We recommend using `#` (all messages) and filtering by the `type` field in your application code. This ensures you don't miss any updates.
 
-The SDK automatically handles disconnections with a clear flow to help you manage market states:
+## Logging
 
-```java
-EventHandler handler = new EventHandler(event -> {
-    if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
-        // ⚠️ DISCONNECTED (code 100) - Suspend/close your markets immediately
-        logger.warn("Feed disconnected - suspending markets");
-        suspendAllMarkets();
-    } else if (event.getCode() == ConnectionEvent.CODE_RECONNECTION) {
-        // ✅ RECONNECTED (code 101) - Recovery complete, safe to reopen markets
-        logger.info("Feed reconnected - recovery complete");
-        // Recovery data is available in the event
-        ConnectionEvent.RecoveryData data = event.getRecoveryData();
-        logger.info("Recovered {} markets, {} matches",
-            data.getMarkets().size(), data.getMatches().size());
-        reopenMarkets();
-    }
-});
-```
+The SDK uses SLF4J + Logback with async file appenders:
 
-### Disconnection/Reconnection Flow
+| Log File | Level |
+|----------|-------|
+| `logs/sdk-debug.log` | DEBUG |
+| `logs/sdk-info.log` | INFO |
+| `logs/sdk-warn.log` | WARN+ |
 
-**When disconnection is detected** (after 3 consecutive missed heartbeats, ~30 seconds):
-1. ⚠️ **ConnectionEvent with code 100** → Your callback is notified **immediately**
-2. 👉 **Action required**: Suspend/close all markets on your side
-3. SDK begins automatic reconnection attempts with exponential backoff
+MDC context tags (`session`, `customerId`, `feed`, `messageType`, `operation`, `routingKey`) are included in every log entry.
 
-**When a real heartbeat message arrives after reconnection**:
-1. 🔄 SDK logs: "Heartbeat restored - starting recovery"
-2. 📦 SDK begins buffering incoming messages (continues consuming from RabbitMQ)
-3. 📊 SDK calls `recoverMarkets(downtime)` to fetch updated markets
-4. 📋 SDK calls `fetchMatchesRange(downtime, uptime)` to fetch modified matches
-5. 📤 SDK processes all buffered messages (in order)
-6. ✅ SDK logs: "Recovery complete - reconnection successful"
-7. ✅ **ConnectionEvent with code 101** → Your callback is notified, with recovery data attached
-8. 👉 **Action required**: Reopen/resume markets - data is now synchronized
+## Troubleshooting
 
-### Important Notes
+**No messages received**: Verify credentials, check that your routing key is correct (`#` for all messages), and confirm there are active matches. Enable debug logging with `.alwaysLogPayload(true)`.
 
-- **Event codes**: Disconnection = `ConnectionEvent.CODE_DISCONNECTION` (100), Reconnection = `ConnectionEvent.CODE_RECONNECTION` (101)
-- **Recovery data**: The reconnection event includes `RecoveryData` with recovered markets and matches from the two recovery API calls
-- **Customer callback timing**: You receive disconnection immediately, but reconnection **only after recovery completes**
-- **Message buffering**: During recovery, incoming messages are buffered internally to prevent race conditions
-- **Heartbeat detection**: Heartbeat messages are identified by having an `at` field and no `type` field
-- **Disabling recovery**: Set `recoverOnReconnect(false)` in `SDKOptions` (global) or per-connection via `new RabbitMQFeed(handler, bindings, false)` to disable automatic recovery
-- **Multiple connections**: With multiple connections, enable recovery on **only one** connection to avoid redundant API calls. See [Multiple Connections](#-multiple-connections) for details
+**Connection refused**: Ensure your firewall allows AMQPS on port 5671. Verify `feedHost` is reachable. Check `logs/sdk-warn.log` for details.
 
-### Example Log Output
+**Second service can't connect**: If you run two services with the **same queue name**, they share messages via round-robin rather than both receiving all messages. Use a distinct queue name per service. See [Running from Separate Services](#running-from-separate-services--docker-containers).
 
-```
-11:20:07 [INFO] Disconnection detected
-         ↓ (customer callback fires - suspend markets)
-11:20:50 [INFO] Heartbeat restored - starting recovery
-11:20:58 [INFO] Recovery complete - reconnection successful
-         ↓ (customer callback fires - reopen markets)
-```
+**IllegalStateException: Cannot create more than 10 connections**: You have too many `RabbitMQFeed` instances open. Call `feed.close()` on feeds you no longer need. Monitor with `RabbitMQFeed.getActiveConnectionCount()`.
 
-## 📝 Logging
-
-The SDK uses SLF4J with Logback for comprehensive logging:
-
-**Log Files:**
-- `sdk-debug.log` - Debug level only
-- `sdk-info.log` - Info level only
-- `sdk-warn.log` - Warning and error level
-
-**MDC Context Tags:**
-- `session` - Session UUID
-- `customerId` - Company ID
-- `feed` - Feed identifier
-- `messageType` - Message type
-- `operation` - Current operation
-- `routingKey` - AMQP routing key
-
-**Configuration:**
-```xml
-<!-- Customize MDC pattern via system property -->
--Dsdk.mdc.pattern="[session=%X{session}] [customerId=%X{customerId}]"
-```
-
-All appenders use `AsyncAppender` to prevent blocking feed processing.
-
-## 🏗️ Building
-
-### Compile
+## Building from Source
 
 ```bash
-./gradlew build
+./gradlew build    # compile + run tests
+./gradlew test     # tests only
+./gradlew run      # run BasicExample
+./gradlew javadoc  # generate API docs
 ```
 
-### Run Tests
+## Links
 
-```bash
-./gradlew test
-```
-
-### Generate Javadoc
-
-```bash
-./gradlew javadoc
-# Output: build/docs/javadoc/index.html
-```
-
-### Create JAR
-
-```bash
-./gradlew jar
-# Output: build/libs/sdk.jar
-```
-
-## 🐛 Troubleshooting
-
-### Permission Denied: ./gradlew
-
-```bash
-chmod +x gradlew
-```
-
-Or use:
-```bash
-sh gradlew build
-```
-
-### No Messages Received
-
-- Verify routing key is correct (`#` for all messages)
-- Check credentials are valid
-- Ensure there are active matches
-- Enable debug logging: `.alwaysLogPayload(true)`
-
-### Connection Issues
-
-- Verify firewall allows AMQPS (port 5671)
-- Check `feedHost` is reachable
-- Review logs in `sdk-warn.log`
-
-### Parsing Errors
-
-- Ensure Jackson dependencies are included
-- Verify you're using correct model class for message type
-- Check raw JSON with `.alwaysLogPayload(true)`
-
-## 🔗 Links
-
-- **API Documentation**: https://pandaodds.readme.io/
-- **Examples Guide**: [examples/README.md](src/main/java/com/pandascore/sdk/examples/README.md)
-- **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
-
-## 📄 License
-
-Copyright © 2026 PandaScore. All rights reserved.
+- [QUICKSTART.md](QUICKSTART.md) -- Step-by-step setup guide
+- [API Documentation](https://pandaodds.readme.io/) -- Official PandaScore API docs
+- [BasicExample.java](src/main/java/com/pandascore/sdk/examples/BasicExample.java) -- Single connection example
+- [MultiConnectionExample.java](src/main/java/com/pandascore/sdk/examples/MultiConnectionExample.java) -- Multi-connection example
 
 ---
 
-**Ready to get started?** Check out [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide!
+Copyright 2026 PandaScore. All rights reserved.
