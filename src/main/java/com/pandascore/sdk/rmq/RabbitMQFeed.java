@@ -78,6 +78,8 @@ public final class RabbitMQFeed implements AutoCloseable {
     private final Queue<JsonNode> recoveryBuffer = new ConcurrentLinkedQueue<>();
     // Customer sink reference (needed for processing buffered messages)
     private volatile Consumer<Object> customerSink;
+    // Flag to indicate intentional shutdown (prevents spurious disconnection events)
+    private volatile boolean closing = false;
 
     /**
      * Constructs a new RabbitMQFeed with the given EventHandler.
@@ -225,18 +227,9 @@ public final class RabbitMQFeed implements AutoCloseable {
 
         factory.setUri(uri);
         conn = factory.newConnection();
-        chan = conn.createChannel();
 
-        // Set QoS prefetch to limit unacked messages per consumer.
-        // Without this, RabbitMQ pushes unlimited messages causing large Unacked counts.
-        int prefetch = opts.getPrefetchCount();
-        if (prefetch > 0) {
-            chan.basicQos(prefetch);
-            logger.info("Channel QoS prefetch set to {}", prefetch);
-        } else {
-            logger.warn("Channel QoS prefetch is unlimited (0) — not recommended for production");
-        }
-
+        // Count the connection immediately and enforce the limit.
+        // No shutdown listener yet — the explicit decrement on rejection is correct.
         int count = activeConnections.incrementAndGet();
         if (count > MAX_CONNECTIONS) {
             activeConnections.decrementAndGet();
@@ -250,14 +243,33 @@ public final class RabbitMQFeed implements AutoCloseable {
         }
         logger.info("AMQP connection established (active connections: {})", count);
 
-        // Listen for shutdown to trigger disconnection handling
+        // Add the shutdown listener immediately after counting so that any
+        // subsequent failure (channel creation, QoS, exchange/queue setup)
+        // will be properly cleaned up via closeExistingConnection() → conn.close()
+        // → listener fires → counter decremented.  This prevents counter leaks.
         conn.addShutdownListener(cause -> {
             MDC.put("operation", "shutdown");
             int remaining = activeConnections.decrementAndGet();
             logger.warn("AMQP shutdown: {} (active connections: {})", cause.getMessage(), remaining);
-            handler.handleDisconnection();
+            // Only trigger disconnection handling for unexpected shutdowns.
+            // Intentional close() should not emit a disconnection event.
+            if (!closing) {
+                handler.handleDisconnection();
+            }
             MDC.remove("operation");
         });
+
+        chan = conn.createChannel();
+
+        // Set QoS prefetch to limit unacked messages per consumer.
+        // Without this, RabbitMQ pushes unlimited messages causing large Unacked counts.
+        int prefetch = opts.getPrefetchCount();
+        if (prefetch > 0) {
+            chan.basicQos(prefetch);
+            logger.info("Channel QoS prefetch set to {}", prefetch);
+        } else {
+            logger.warn("Channel QoS prefetch is unlimited (0) — not recommended for production");
+        }
 
         // Declare exchange and queues
         String exchange = "pandascore.feed";
@@ -408,7 +420,9 @@ public final class RabbitMQFeed implements AutoCloseable {
 
     /**
      * Closes the existing AMQP channel and connection if they are open.
-     * Decrements the global active connection counter.
+     * The shutdown listener on the connection handles decrementing the
+     * global active connection counter — this method does NOT decrement
+     * directly to avoid double-counting.
      * Called before establishing a new connection to prevent leaks.
      */
     private void closeExistingConnection() {
@@ -421,8 +435,9 @@ public final class RabbitMQFeed implements AutoCloseable {
         }
         try {
             if (conn != null && conn.isOpen()) {
+                // conn.close() triggers the shutdown listener which decrements
+                // activeConnections — do NOT decrement here to avoid double-decrement.
                 conn.close();
-                activeConnections.decrementAndGet();
             }
         } catch (Exception e) {
             logger.debug("Error closing existing connection", e);
@@ -437,6 +452,7 @@ public final class RabbitMQFeed implements AutoCloseable {
      */
     @Override
     public void close() {
+        closing = true;
         retry.shutdownNow();
         try {
             handler.shutdown();
