@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -358,7 +359,7 @@ public final class RabbitMQFeed implements AutoCloseable {
             chan.basicConsume(
                 qb.getQueueName(),
                 false,
-                qb.getQueueName() + "_consumer",
+                qb.getQueueName() + "_" + UUID.randomUUID(),
                 cb,
                 consumerTag -> {}
             );
