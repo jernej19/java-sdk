@@ -98,6 +98,14 @@ public class EventHandler implements AutoCloseable {
     }
 
     /**
+     * Returns the connection label from the associated feed, or an empty string if no feed is set.
+     */
+    private String label() {
+        RabbitMQFeed f = feed;
+        return f != null ? f.getConnectionLabel() + " " : "";
+    }
+
+    /**
      * Call when a heartbeat message is received to reset the timer and missed-beat counter.
      * If previously disconnected, initiates recovery process before notifying application.
      */
@@ -108,7 +116,7 @@ public class EventHandler implements AutoCloseable {
             disconnected = false;
             Instant up = lastBeat;
             MDC.put("operation", "reconnect");
-            logger.info("Heartbeat restored - starting recovery");
+            logger.info("{}Heartbeat restored - starting recovery", label());
 
             // Start buffering messages during recovery
             if (feed != null) {
@@ -125,9 +133,9 @@ public class EventHandler implements AutoCloseable {
                     recoveredMarkets = MatchesClient.recoverMarkets(downAt.toString());
                     recoveredMatches = MatchesClient.fetchMatchesRange(downAt.toString(), up.toString());
                 }
-                logger.info("Recovery complete - reconnection successful");
+                logger.info("{}Recovery complete - reconnection successful", label());
             } catch (Exception e) {
-                logger.error("Automatic recovery failed", e);
+                logger.error("{}Automatic recovery failed", label(), e);
             } finally {
                 downAt = null;
             }
@@ -167,7 +175,7 @@ public class EventHandler implements AutoCloseable {
             downAt = Instant.now();
             missedHeartbeats = 0;
             MDC.put("operation", "disconnection");
-            logger.info("Disconnection detected");
+            logger.info("{}Disconnection detected", label());
             sink.accept(ConnectionEvent.disconnection());
             MDC.remove("operation");
         }
@@ -180,12 +188,12 @@ public class EventHandler implements AutoCloseable {
 
         if (Duration.between(lastBeat, Instant.now()).compareTo(HEARTBEAT_INTERVAL.plus(HEARTBEAT_GRACE)) > 0) {
             missedHeartbeats++;
-            logger.debug("Missed heartbeat #{}", missedHeartbeats);
+            logger.debug("{}Missed heartbeat #{}", label(), missedHeartbeats);
             if (missedHeartbeats >= MAX_MISSED_COUNT) {
                 disconnected = true;
                 downAt = Instant.now();
                 MDC.put("operation", "disconnection");
-                logger.info("Missed {} heartbeats – marking disconnected", missedHeartbeats);
+                logger.info("{}Missed {} heartbeats – marking disconnected", label(), missedHeartbeats);
                 sink.accept(ConnectionEvent.disconnection());
                 MDC.remove("operation");
             }
