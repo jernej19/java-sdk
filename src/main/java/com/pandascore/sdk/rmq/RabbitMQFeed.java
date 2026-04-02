@@ -72,6 +72,8 @@ public final class RabbitMQFeed implements AutoCloseable {
     private final List<SDKOptions.QueueBinding> queueBindings;
     // Per-connection recovery flag (if null, falls back to global config)
     private final Boolean recoverOnReconnect;
+    // Human-readable label derived from queue names for log identification
+    private final String connectionLabel;
 
     // Recovery state: when true, buffer messages instead of processing them
     private volatile boolean recovering = false;
@@ -135,6 +137,21 @@ public final class RabbitMQFeed implements AutoCloseable {
         } else {
             this.queueBindings = null;
         }
+        // Build a human-readable label from queue names for log identification
+        List<SDKOptions.QueueBinding> effective = getEffectiveQueueBindings();
+        this.connectionLabel = "[" + effective.stream()
+            .map(SDKOptions.QueueBinding::getQueueName)
+            .collect(java.util.stream.Collectors.joining(", ")) + "]";
+    }
+
+    /**
+     * Returns a human-readable label identifying this connection by its queue names.
+     * Used to prefix log messages so operators can distinguish connections in multi-connection setups.
+     *
+     * @return label in the format "[queue1, queue2]"
+     */
+    public String getConnectionLabel() {
+        return connectionLabel;
     }
 
     /**
@@ -173,7 +190,7 @@ public final class RabbitMQFeed implements AutoCloseable {
         MDC.put("feed", "allOddsFeed");
         MDC.put("operation", "connect");
 
-        logger.info("Connecting to feed host (attempt #{})", attempt);
+        logger.info("{} Connecting to feed host (attempt #{})", connectionLabel, attempt);
         try {
             establish();
             startConsumers(sink);
@@ -181,10 +198,10 @@ public final class RabbitMQFeed implements AutoCloseable {
             // triggering recovery — recovery should only start when a real
             // heartbeat message arrives from the server.
             handler.resetTimer();
-            logger.info("Connected successfully");
+            logger.info("{} Connected successfully", connectionLabel);
             attempt = 1;
         } catch (Exception e) {
-            logger.error("Connection failed on attempt #{}", attempt, e);
+            logger.error("{} Connection failed on attempt #{}", connectionLabel, attempt, e);
             scheduleReconnect(sink);
         } finally {
             MDC.remove("operation");
@@ -242,7 +259,7 @@ public final class RabbitMQFeed implements AutoCloseable {
                     + " concurrent AMQP connections. Currently active: " + (count - 1)
                     + ". Call close() on unused feeds to release connections.");
         }
-        logger.info("AMQP connection established (active connections: {})", count);
+        logger.info("{} AMQP connection established (active connections: {})", connectionLabel, count);
 
         // Add the shutdown listener immediately after counting so that any
         // subsequent failure (channel creation, QoS, exchange/queue setup)
@@ -251,7 +268,7 @@ public final class RabbitMQFeed implements AutoCloseable {
         conn.addShutdownListener(cause -> {
             MDC.put("operation", "shutdown");
             int remaining = activeConnections.decrementAndGet();
-            logger.warn("AMQP shutdown: {} (active connections: {})", cause.getMessage(), remaining);
+            logger.warn("{} AMQP shutdown: {} (active connections: {})", connectionLabel, cause.getMessage(), remaining);
             // Only trigger disconnection handling for unexpected shutdowns.
             // Intentional close() should not emit a disconnection event.
             if (!closing) {
@@ -374,7 +391,7 @@ public final class RabbitMQFeed implements AutoCloseable {
     private void scheduleReconnect(Consumer<Object> sink) {
         int delay = Math.min(attempt * 5, 60);
         MDC.put("operation", "reconnect");
-        logger.warn("Reconnecting in {}s (attempt #{})", delay, attempt);
+        logger.warn("{} Reconnecting in {}s (attempt #{})", connectionLabel, delay, attempt);
         Map<String, String> savedMap = MDC.getCopyOfContextMap();
         retry.schedule(() -> {
             MDC.setContextMap(savedMap);
@@ -391,7 +408,7 @@ public final class RabbitMQFeed implements AutoCloseable {
     public void startRecovery() {
         recovering = true;
         recoveryBuffer.clear();  // Clear any stale buffered messages
-        logger.info("Recovery mode started - buffering messages");
+        logger.info("{} Recovery mode started - buffering messages", connectionLabel);
     }
 
     /**
@@ -399,7 +416,7 @@ public final class RabbitMQFeed implements AutoCloseable {
      * Called by EventHandler when recovery completes.
      */
     public void endRecovery() {
-        logger.info("Recovery mode ending - processing {} buffered messages", recoveryBuffer.size());
+        logger.info("{} Recovery mode ending - processing {} buffered messages", connectionLabel, recoveryBuffer.size());
 
         // Process all buffered messages
         JsonNode bufferedMessage;
@@ -415,7 +432,7 @@ public final class RabbitMQFeed implements AutoCloseable {
             }
         }
 
-        logger.info("Processed {} buffered messages - resuming normal operation", processed);
+        logger.info("{} Processed {} buffered messages - resuming normal operation", connectionLabel, processed);
         recovering = false;
     }
 
