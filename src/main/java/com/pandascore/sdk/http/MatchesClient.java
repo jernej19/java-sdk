@@ -2,9 +2,8 @@ package com.pandascore.sdk.http;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.pandascore.sdk.config.JsonMapperFactory;
 import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.config.SDKOptions;
 import com.pandascore.sdk.model.feed.fixtures.FixtureMatch;
@@ -19,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -34,9 +34,7 @@ import java.util.stream.Collectors;
  */
 public final class MatchesClient {
     private static final Logger logger = LoggerFactory.getLogger(MatchesClient.class);
-    private static final ObjectMapper mapper = new ObjectMapper()
-        .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-        .registerModule(new JavaTimeModule());
+    private static final ObjectMapper mapper = JsonMapperFactory.create();
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
         .connectTimeout(Duration.ofSeconds(30))
         .readTimeout(Duration.ofSeconds(60))
@@ -185,7 +183,12 @@ public final class MatchesClient {
         );
         try {
             MarketsResponse response = get(url, new TypeReference<MarketsResponse>() {});
-            return response.getGames().stream()
+            List<MarketsResponse.GameMarkets> games = response.getGames();
+            if (games == null) {
+                return Collections.emptyList();
+            }
+            return games.stream()
+                .filter(game -> game.getMarkets() != null)
                 .flatMap(game -> game.getMarkets().stream())
                 .collect(Collectors.toList());
         } finally {

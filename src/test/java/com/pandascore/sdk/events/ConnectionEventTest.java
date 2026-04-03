@@ -98,6 +98,34 @@ class ConnectionEventTest {
     }
 
     // ============================================================
+    //  RecoveryData.isComplete
+    // ============================================================
+
+    @Test
+    @DisplayName("RecoveryData 2-arg constructor defaults isComplete to true")
+    void recoveryData_twoArgConstructor_defaultsComplete() {
+        ConnectionEvent.RecoveryData data = new ConnectionEvent.RecoveryData(
+            Collections.emptyList(), Collections.emptyList());
+        assertTrue(data.isComplete());
+    }
+
+    @Test
+    @DisplayName("RecoveryData with complete=true reports isComplete true")
+    void recoveryData_completeTrue() {
+        ConnectionEvent.RecoveryData data = new ConnectionEvent.RecoveryData(
+            Collections.emptyList(), Collections.emptyList(), true);
+        assertTrue(data.isComplete());
+    }
+
+    @Test
+    @DisplayName("RecoveryData with complete=false reports isComplete false")
+    void recoveryData_completeFalse() {
+        ConnectionEvent.RecoveryData data = new ConnectionEvent.RecoveryData(
+            Collections.emptyList(), Collections.emptyList(), false);
+        assertFalse(data.isComplete());
+    }
+
+    // ============================================================
     //  toString
     // ============================================================
 

@@ -239,4 +239,35 @@ class MatchesClientTest {
 
         assertThrows(IOException.class, () -> MatchesClient.fetchMarkets("500"));
     }
+
+    @Test
+    @DisplayName("fetchMarkets with null games returns empty list")
+    void fetchMarkets_nullGames() throws Exception {
+        server.enqueue(new MockResponse()
+            .setBody("{\"games\": null}")
+            .addHeader("Content-Type", "application/json"));
+
+        List<MarketsMessageMarket> result = MatchesClient.fetchMarkets("500");
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("fetchMarkets with null markets in a game skips that game")
+    void fetchMarkets_nullMarketsInGame() throws Exception {
+        String json = """
+            {
+              "games": [
+                {"markets": null},
+                {"markets": [{"id": "m1"}]}
+              ]
+            }
+            """;
+        server.enqueue(new MockResponse()
+            .setBody(json)
+            .addHeader("Content-Type", "application/json"));
+
+        List<MarketsMessageMarket> result = MatchesClient.fetchMarkets("500");
+        assertEquals(1, result.size());
+        assertEquals("m1", result.get(0).getId());
+    }
 }
