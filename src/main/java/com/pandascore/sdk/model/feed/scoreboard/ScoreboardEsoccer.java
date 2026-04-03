@@ -1,5 +1,6 @@
 package com.pandascore.sdk.model.feed.scoreboard;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import java.time.Instant;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.List;
  * Scoreboard message for eSoccer matches.
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreboardEsoccer {
     /** Identifier of the scoreboard. */
     private long id;
