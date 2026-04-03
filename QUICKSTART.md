@@ -52,18 +52,20 @@ Add credentials to `~/.m2/settings.xml`:
 </settings>
 ```
 
-### 2. Basic Usage Example
+### 2. Basic Usage Example (Typed Callbacks)
+
+The SDK provides a `FeedListener` interface that auto-deserializes messages and dispatches them to typed methods. Override only the ones you need:
 
 ```java
+import com.pandascore.sdk.FeedListener;
 import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.config.SDKOptions;
 import com.pandascore.sdk.events.ConnectionEvent;
 import com.pandascore.sdk.events.EventHandler;
 import com.pandascore.sdk.rmq.RabbitMQFeed;
 import com.pandascore.sdk.model.feed.markets.MarketsMessage;
+import com.pandascore.sdk.model.feed.fixtures.FixtureMessage;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public class SimpleOddsExample {
     public static void main(String[] args) throws Exception {
@@ -89,46 +91,43 @@ public class SimpleOddsExample {
             if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
                 System.out.println("Disconnected! Suspend markets.");
             } else {
+                ConnectionEvent.RecoveryData data = event.getRecoveryData();
                 System.out.println("Reconnected! Recovered "
-                    + event.getRecoveryData().getMarkets().size() + " markets.");
+                    + data.getMarkets().size() + " markets.");
+                if (!data.isComplete()) {
+                    System.out.println("Warning: recovery was partial");
+                }
             }
         });
 
-        // 3. Create ObjectMapper for JSON parsing
-        ObjectMapper mapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
-
-        // 4. Connect to feed and process messages
+        // 3. Connect with typed listener — no manual JSON parsing needed
         RabbitMQFeed feed = new RabbitMQFeed(eventHandler);
 
-        feed.connect(message -> {
-            JsonNode json = (JsonNode) message;
-            String type = json.get("type").asText();
+        feed.connect(new FeedListener() {
+            @Override
+            public void onMarkets(MarketsMessage markets) {
+                System.out.println("=== MARKETS UPDATE ===");
+                System.out.println("Match ID: " + markets.getMatchId());
+                System.out.println("Action: " + markets.getAction());
 
-            // Process markets (odds) messages
-            if ("markets".equals(type)) {
-                try {
-                    MarketsMessage markets = mapper.treeToValue(json, MarketsMessage.class);
-
-                    System.out.println("=== MARKETS UPDATE ===");
-                    System.out.println("Match ID: " + markets.getMatchId());
-                    System.out.println("Action: " + markets.getAction());
-
-                    markets.getMarkets().forEach(market -> {
-                        System.out.println("\nMarket: " + market.getName());
-                        System.out.println("  Status: " + market.getStatus());
-
-                        market.getSelections().forEach(selection -> {
-                            System.out.printf("    %s: %.2f%n",
-                                selection.getName(),
-                                selection.getOddsDecimalWithOverround()
-                            );
-                        });
+                markets.getMarkets().forEach(market -> {
+                    System.out.println("\nMarket: " + market.getName());
+                    market.getSelections().forEach(sel -> {
+                        System.out.printf("    %s: %.2f%n",
+                            sel.getName(), sel.getOddsDecimalWithOverround());
                     });
+                });
+            }
 
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            @Override
+            public void onFixture(FixtureMessage fixture) {
+                System.out.println("Fixture: " + fixture.getMatchId()
+                    + " — " + fixture.getAction());
+            }
+
+            @Override
+            public void onScoreboard(JsonNode raw, String scoreboardType) {
+                System.out.println("Scoreboard [" + scoreboardType + "]");
             }
         });
 
@@ -137,6 +136,8 @@ public class SimpleOddsExample {
     }
 }
 ```
+
+> **Tip**: You can also use `feed.connect(message -> { ... })` with raw `JsonNode` if you need full control over deserialization.
 
 ### 3. Fetch Specific Match Markets (HTTP API)
 

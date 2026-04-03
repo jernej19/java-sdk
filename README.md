@@ -19,8 +19,9 @@ The PandaScore Java SDK provides a complete solution for integrating esports bet
 
 ### Core Functionality
 - 🔄 **RabbitMQ Feed Integration** – Stream live markets, fixtures, and scoreboards
-- 🔌 **Automatic Reconnection** – Detects disconnections and recovers missed data
+- 🔌 **Automatic Reconnection** – Detects disconnections and recovers missed data with jitter-based backoff
 - 📊 **Rich Data Models** – Complete type coverage for all message types
+- 🎯 **Typed Message Callbacks** – `FeedListener` interface with `onMarkets`, `onFixture`, `onScoreboard` for automatic deserialization
 - 🌐 **HTTP Client** – Fetch matches and markets on-demand
 - 📈 **Multiple Odds Formats** – Decimal, American, and Fractional
 
@@ -105,36 +106,53 @@ SDKConfig.setOptions(options);
 
 ### 3. Connect and Receive Odds
 
-```java
-ObjectMapper mapper = new ObjectMapper()
-    .registerModule(new JavaTimeModule());
+**Using typed callbacks (recommended):**
 
+```java
 EventHandler handler = new EventHandler(event -> {
     if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
         System.out.println("Disconnected!");
     } else {
-        System.out.println("Reconnected with " +
-            event.getRecoveryData().getMarkets().size() + " recovered markets");
+        ConnectionEvent.RecoveryData data = event.getRecoveryData();
+        System.out.println("Reconnected with " + data.getMarkets().size() + " recovered markets");
+        if (!data.isComplete()) {
+            System.out.println("Warning: recovery was partial — some data may be missing");
+        }
     }
 });
 
 RabbitMQFeed feed = new RabbitMQFeed(handler);
-feed.connect(message -> {
-    JsonNode json = (JsonNode) message;
-
-    if ("markets".equals(json.get("type").asText())) {
-        MarketsMessage markets = mapper.treeToValue(json, MarketsMessage.class);
-
+feed.connect(new FeedListener() {
+    @Override
+    public void onMarkets(MarketsMessage markets) {
+        System.out.println("Match " + markets.getMatchId() + " — " + markets.getAction());
         markets.getMarkets().forEach(market -> {
             System.out.println("Market: " + market.getName());
             market.getSelections().forEach(sel -> {
                 System.out.printf("  %s: %.2f%n",
-                    sel.getName(),
-                    sel.getOddsDecimalWithOverround()
-                );
+                    sel.getName(), sel.getOddsDecimalWithOverround());
             });
         });
     }
+
+    @Override
+    public void onFixture(FixtureMessage fixture) {
+        System.out.println("Fixture: " + fixture.getMatchId() + " — " + fixture.getAction());
+    }
+
+    @Override
+    public void onScoreboard(JsonNode raw, String scoreboardType) {
+        System.out.println("Scoreboard [" + scoreboardType + "]: " + raw.get("id"));
+    }
+});
+```
+
+**Using raw JSON (advanced):**
+
+```java
+feed.connect(message -> {
+    JsonNode json = (JsonNode) message;
+    // Full control over deserialization
 });
 ```
 
@@ -190,6 +208,7 @@ SDKOptions options = SDKOptions.builder()
 | `fractionalOdds` | boolean | `false` | Compute fractional odds (3/2, 8/13) |
 | `recoverOnReconnect` | boolean | `true` | Auto-recover markets on reconnection (global default) |
 | `alwaysLogPayload` | boolean | `false` | Log all payloads at INFO level |
+| `prefetchCount` | int | `1` | RabbitMQ QoS prefetch per consumer (0 = unlimited) |
 
 ### Queue Bindings
 
@@ -315,17 +334,29 @@ See [MultiConnectionExample.java](src/main/java/com/pandascore/sdk/examples/Mult
 
 ### Streaming API (RabbitMQ)
 
+**Typed listener (recommended):**
 ```java
 RabbitMQFeed feed = new RabbitMQFeed(eventHandler);
+feed.connect(new FeedListener() {
+    @Override public void onMarkets(MarketsMessage msg) { /* ... */ }
+    @Override public void onFixture(FixtureMessage msg) { /* ... */ }
+    @Override public void onScoreboard(JsonNode raw, String type) { /* ... */ }
+    @Override public void onUnknown(JsonNode raw) { /* ... */ }
+});
+```
+
+**Raw JSON consumer:**
+```java
 feed.connect(message -> {
-    // Process JsonNode message
+    JsonNode json = (JsonNode) message;
+    // Manual type switching and deserialization
 });
 ```
 
 **Message Types:**
 - **Markets** - Odds and betting markets
 - **Fixtures** - Match and tournament information
-- **Scoreboards** - Live scores and game state
+- **Scoreboards** - Live scores and game state (CS, Dota 2, LoL, Valorant, eSoccer, eBasketball, eHockey, eTennis)
 
 ### HTTP API (REST)
 
@@ -367,8 +398,8 @@ The SDK includes comprehensive data models for all message types:
 - `MatchStatus`, `MatchType`, `GameStatus` - Status enums
 
 **Scoreboards** (`com.pandascore.sdk.model.feed.scoreboard`)
-- `ScoreboardEsoccer`, `ScoreboardEbasketball`, `ScoreboardEhockey`
 - `ScoreboardCs`, `ScoreboardDota2`, `ScoreboardLol`, `ScoreboardValorant`
+- `ScoreboardEsoccer`, `ScoreboardEbasketball`, `ScoreboardEhockey`, `ScoreboardEtennis`
 - Timer objects with pause state and period tracking
 
 ## 🔄 Automatic Recovery & Disconnection Handling
@@ -382,13 +413,20 @@ EventHandler handler = new EventHandler(event -> {
         logger.warn("Feed disconnected - suspending markets");
         suspendAllMarkets();
     } else if (event.getCode() == ConnectionEvent.CODE_RECONNECTION) {
-        // ✅ RECONNECTED (code 101) - Recovery complete, safe to reopen markets
-        logger.info("Feed reconnected - recovery complete");
-        // Recovery data is available in the event
+        // ✅ RECONNECTED (code 101) - Recovery data is available in the event
         ConnectionEvent.RecoveryData data = event.getRecoveryData();
         logger.info("Recovered {} markets, {} matches",
             data.getMarkets().size(), data.getMatches().size());
-        reopenMarkets();
+
+        if (data.isComplete()) {
+            // Full recovery succeeded — safe to reopen markets
+            reopenMarkets();
+        } else {
+            // Partial recovery — one or both API calls failed
+            // Consider re-fetching manually or proceeding with caution
+            logger.warn("Recovery was partial — some data may be missing");
+            reopenMarketsWithCaution();
+        }
     }
 });
 ```
@@ -414,9 +452,11 @@ EventHandler handler = new EventHandler(event -> {
 
 - **Event codes**: Disconnection = `ConnectionEvent.CODE_DISCONNECTION` (100), Reconnection = `ConnectionEvent.CODE_RECONNECTION` (101)
 - **Recovery data**: The reconnection event includes `RecoveryData` with recovered markets and matches from the two recovery API calls
+- **Recovery status**: `RecoveryData.isComplete()` returns `true` if both API calls succeeded, `false` if recovery was partial. Always check this before trusting the recovered data
 - **Customer callback timing**: You receive disconnection immediately, but reconnection **only after recovery completes**
 - **Message buffering**: During recovery, incoming messages are buffered internally to prevent race conditions
 - **Heartbeat detection**: Heartbeat messages are identified by having an `at` field and no `type` field
+- **Reconnection backoff**: Exponential backoff with jitter (base: `attempt * 5s`, max 60s, plus random jitter up to half the base) to prevent thundering herd
 - **Disabling recovery**: Set `recoverOnReconnect(false)` in `SDKOptions` (global) or per-connection via `new RabbitMQFeed(handler, bindings, false)` to disable automatic recovery
 - **Multiple connections**: With multiple connections, enable recovery on **only one** connection to avoid redundant API calls. See [Multiple Connections](#-multiple-connections) for details
 

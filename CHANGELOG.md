@@ -7,6 +7,46 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.0] - 2026-04-03
+
+### Added
+- **`FeedListener` interface** for typed message callbacks — `onMarkets(MarketsMessage)`,
+  `onFixture(FixtureMessage)`, `onScoreboard(JsonNode, String)`, `onUnknown(JsonNode)`.
+  Override only the methods you need; defaults are no-ops.
+- **`TypedFeedAdapter`** — wraps a `FeedListener` into a `Consumer<Object>`, auto-deserializes
+  incoming JSON by `type` field, and dispatches to the matching listener method. Falls back to
+  `onUnknown` on deserialization errors.
+- **`RabbitMQFeed.connect(FeedListener)`** overload for typed consumption without manual JSON parsing.
+- **`RecoveryData.isComplete()`** flag on reconnection events — returns `true` if both recovery
+  API calls succeeded, `false` if recovery was partial or failed.
+- **`JsonMapperFactory`** — shared `ObjectMapper` factory (`NON_NULL` + `JavaTimeModule`) used
+  by `RabbitMQFeed`, `MatchesClient`, and `TypedFeedAdapter`.
+- **Reconnection jitter** — randomized delay added to exponential backoff to prevent thundering
+  herd in multi-client deployments.
+
+### Fixed
+- **NPE in `MatchesClient.fetchMarkets()`** when API returns `null` for `games` or `markets` lists.
+  Now returns empty list instead of crashing during recovery.
+- **`SDKConfig` singleton thread safety** — `instance` field is now `volatile`, ensuring visibility
+  across threads.
+- **Heartbeat race condition** — added `stateLock` to `EventHandler` to prevent concurrent
+  `heartbeat()` calls from both triggering recovery simultaneously.
+- **`connect()` race condition** — method is now `synchronized` to prevent the reconnect scheduler
+  and manual calls from racing through `establish()`.
+- **Reconnect task not cancellable** — `ScheduledFuture` is now stored and cancelled on `close()`.
+- **Executor shutdown** — `awaitTermination(5s)` added to both `RabbitMQFeed.close()` and
+  `EventHandler.shutdown()` to ensure background tasks complete before returning.
+- **MDC context pollution** — `connect()` now saves and restores the full MDC context map instead
+  of leaking keys like `session`, `customerId`, and `feed`.
+- **Recovery status misreported** — the "Recovery complete" log now only appears when both API
+  calls succeed. Partial failures are logged with a clear warning.
+- **Missing `@JsonIgnoreProperties`** on all 8 scoreboard model classes (`ScoreboardCs`,
+  `ScoreboardDota2`, `ScoreboardLol`, `ScoreboardValorant`, `ScoreboardEsoccer`,
+  `ScoreboardEbasketball`, `ScoreboardEhockey`, `ScoreboardEtennis`). Without this annotation,
+  any new field added to the feed would cause deserialization failures.
+
+---
+
 ## [1.0.0] - 2026-03-31
 
 ### Added
