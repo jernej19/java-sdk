@@ -1,9 +1,10 @@
 package com.pandascore.sdk.rmq;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.pandascore.sdk.FeedListener;
+import com.pandascore.sdk.TypedFeedAdapter;
+import com.pandascore.sdk.config.JsonMapperFactory;
 import com.pandascore.sdk.config.SDKConfig;
 import com.pandascore.sdk.config.SDKOptions;
 import com.pandascore.sdk.events.EventHandler;
@@ -30,6 +31,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -58,9 +61,7 @@ public final class RabbitMQFeed implements AutoCloseable {
     private final EventHandler handler;
     private Connection conn;
     private Channel chan;
-    private final ObjectMapper mapper = new ObjectMapper()
-        .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-        .registerModule(new JavaTimeModule());
+    private final ObjectMapper mapper = JsonMapperFactory.create();
     private final ScheduledExecutorService retry = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "rmq-retry");
         t.setDaemon(true);
@@ -83,6 +84,8 @@ public final class RabbitMQFeed implements AutoCloseable {
     private volatile Consumer<Object> customerSink;
     // Flag to indicate intentional shutdown (prevents spurious disconnection events)
     private volatile boolean closing = false;
+    // Pending reconnect task (stored so it can be cancelled on close)
+    private volatile ScheduledFuture<?> pendingReconnect;
 
     /**
      * Constructs a new RabbitMQFeed with the given EventHandler.
@@ -178,34 +181,55 @@ public final class RabbitMQFeed implements AutoCloseable {
      *
      * @param sink consumer to process each incoming JSON event
      */
-    public void connect(Consumer<Object> sink) {
+    public synchronized void connect(Consumer<Object> sink) {
         this.customerSink = sink;  // Store reference for buffer processing
 
         // Wire up feed reference to handler for recovery control
         handler.setFeed(this);
 
-        // Preserve tracing context
-        MDC.put("session", MDC.get("session"));
-        MDC.put("customerId", String.valueOf(opts.getCompanyId()));
-        MDC.put("feed", "allOddsFeed");
-        MDC.put("operation", "connect");
-
-        logger.info("{} Connecting to feed host (attempt #{})", connectionLabel, attempt);
+        // Save and restore MDC to prevent context pollution across threads
+        Map<String, String> savedMdc = MDC.getCopyOfContextMap();
         try {
-            establish();
-            startConsumers(sink);
-            // Reset the heartbeat timer after transport reconnection without
-            // triggering recovery — recovery should only start when a real
-            // heartbeat message arrives from the server.
-            handler.resetTimer();
-            logger.info("{} Connected successfully", connectionLabel);
-            attempt = 1;
-        } catch (Exception e) {
-            logger.error("{} Connection failed on attempt #{}", connectionLabel, attempt, e);
-            scheduleReconnect(sink);
+            MDC.put("session", MDC.get("session"));
+            MDC.put("customerId", String.valueOf(opts.getCompanyId()));
+            MDC.put("feed", "allOddsFeed");
+            MDC.put("operation", "connect");
+
+            logger.info("{} Connecting to feed host (attempt #{})", connectionLabel, attempt);
+            try {
+                establish();
+                startConsumers(sink);
+                // Reset the heartbeat timer after transport reconnection without
+                // triggering recovery — recovery should only start when a real
+                // heartbeat message arrives from the server.
+                handler.resetTimer();
+                logger.info("{} Connected successfully", connectionLabel);
+                attempt = 1;
+            } catch (Exception e) {
+                logger.error("{} Connection failed on attempt #{}", connectionLabel, attempt, e);
+                scheduleReconnect(sink);
+            }
         } finally {
-            MDC.remove("operation");
+            if (savedMdc != null) {
+                MDC.setContextMap(savedMdc);
+            } else {
+                MDC.clear();
+            }
         }
+    }
+
+    /**
+     * Connects to the RabbitMQ feed using a typed listener for automatic
+     * message deserialization and dispatch.
+     * <p>
+     * This is a convenience overload that wraps the listener in a
+     * {@link TypedFeedAdapter} and delegates to {@link #connect(Consumer)}.
+     *
+     * @param listener typed callback for markets, fixture, and scoreboard messages
+     * @see FeedListener
+     */
+    public void connect(FeedListener listener) {
+        connect(new TypedFeedAdapter(listener));
     }
 
     /**
@@ -389,11 +413,13 @@ public final class RabbitMQFeed implements AutoCloseable {
      * @param sink the same consumer passed to connect()
      */
     private void scheduleReconnect(Consumer<Object> sink) {
-        int delay = Math.min(attempt * 5, 60);
+        int base = Math.min(attempt * 5, 60);
+        int jitter = ThreadLocalRandom.current().nextInt(0, base / 2 + 1);
+        int delay = base + jitter;
         MDC.put("operation", "reconnect");
         logger.warn("{} Reconnecting in {}s (attempt #{})", connectionLabel, delay, attempt);
         Map<String, String> savedMap = MDC.getCopyOfContextMap();
-        retry.schedule(() -> {
+        pendingReconnect = retry.schedule(() -> {
             MDC.setContextMap(savedMap);
             attempt++;
             connect(sink);
@@ -471,7 +497,18 @@ public final class RabbitMQFeed implements AutoCloseable {
     @Override
     public void close() {
         closing = true;
+        // Cancel any pending reconnect task
+        ScheduledFuture<?> pending = pendingReconnect;
+        if (pending != null) {
+            pending.cancel(false);
+        }
         retry.shutdownNow();
+        try {
+            retry.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.debug("Interrupted while awaiting retry executor shutdown", e);
+        }
         try {
             handler.shutdown();
         } catch (Exception e) {

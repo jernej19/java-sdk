@@ -107,13 +107,24 @@ SDKOptions options = SDKOptions.builder()
 
 ### Routing Key
 
-The example uses `#` (all messages) and filters by message type in code:
+The example uses `#` (all messages) and filters by message type in code.
+
+**Typed listener (recommended)** — auto-deserializes messages for you:
+
+```java
+feed.connect(new FeedListener() {
+    @Override public void onMarkets(MarketsMessage msg) { /* ... */ }
+    @Override public void onFixture(FixtureMessage msg) { /* ... */ }
+    @Override public void onScoreboard(JsonNode raw, String type) { /* ... */ }
+});
+```
+
+**Raw JSON consumer** — full control over deserialization:
 
 ```java
 feed.connect(message -> {
     JsonNode json = (JsonNode) message;
     String type = json.get("type").asText();
-
     switch (type) {
         case "markets" -> handleMarkets(json, mapper);
         case "fixture" -> handleFixture(json, mapper);
@@ -134,10 +145,12 @@ EventHandler eventHandler = new EventHandler(event -> {
     if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
         System.out.println("[" + time + "] DISCONNECTION (code " + event.getCode() + ")");
     } else {
+        ConnectionEvent.RecoveryData data = event.getRecoveryData();
         System.out.println("[" + time + "] RECONNECTION (code " + event.getCode() + ")");
-        if (event.getRecoveryData() != null) {
-            System.out.println("  Recovered " + event.getRecoveryData().getMarkets().size()
-                + " markets, " + event.getRecoveryData().getMatches().size() + " matches");
+        System.out.println("  Recovered " + data.getMarkets().size()
+            + " markets, " + data.getMatches().size() + " matches");
+        if (!data.isComplete()) {
+            System.out.println("  WARNING: recovery was partial — some data may be missing");
         }
     }
 });
@@ -147,6 +160,7 @@ EventHandler eventHandler = new EventHandler(event -> {
 - **Code 100 (disconnection)** fires immediately when 3 heartbeats are missed (~30s) → Suspend markets
 - **Code 101 (reconnection)** fires AFTER automatic recovery completes → Reopen markets
 - Recovery data (markets + matches) is included in the reconnection event
+- **`RecoveryData.isComplete()`** returns `true` if both recovery API calls succeeded, `false` if recovery was partial (e.g. one API call timed out). Always check this before trusting the data
 - Recovery automatically fetches missed markets and match updates
 
 ---
@@ -180,7 +194,45 @@ RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixtureBindings, f
 
 ## 🛠️ Customization Examples
 
-### 1. Filter Specific Markets
+### 1. Using FeedListener with Typed Callbacks
+
+The `FeedListener` interface provides type-safe callbacks — no manual JSON parsing needed:
+
+```java
+feed.connect(new FeedListener() {
+    @Override
+    public void onMarkets(MarketsMessage markets) {
+        markets.getMarkets().forEach(market -> {
+            System.out.println("Market: " + market.getName());
+            market.getSelections().forEach(sel -> {
+                System.out.printf("  %s: %.2f%n",
+                    sel.getName(), sel.getOddsDecimalWithOverround());
+            });
+        });
+    }
+
+    @Override
+    public void onFixture(FixtureMessage fixture) {
+        if (fixture.getMatch() != null) {
+            System.out.println("Match: " + fixture.getMatch().getName()
+                + " — " + fixture.getMatch().getStatus());
+        }
+    }
+
+    @Override
+    public void onScoreboard(JsonNode raw, String scoreboardType) {
+        // Deserialize to the specific scoreboard model based on type
+        switch (scoreboardType) {
+            case "cs"   -> { /* mapper.treeToValue(raw, ScoreboardCs.class) */ }
+            case "lol"  -> { /* mapper.treeToValue(raw, ScoreboardLol.class) */ }
+            case "dota2" -> { /* mapper.treeToValue(raw, ScoreboardDota2.class) */ }
+            // valorant, esoccer, ebasketball, ehockey, etennis
+        }
+    }
+});
+```
+
+### 2. Filter Specific Markets
 
 ```java
 private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {
@@ -202,7 +254,7 @@ private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exc
 }
 ```
 
-### 2. Track Specific Game
+### 3. Track Specific Game
 
 ```java
 if ("markets".equals(type)) {
@@ -215,7 +267,7 @@ if ("markets".equals(type)) {
 }
 ```
 
-### 3. Access American Odds
+### 4. Access American Odds
 
 American odds are computed by default (false). To enable, add to SDKOptions builder:
 ```java
@@ -239,7 +291,7 @@ private static String formatAmerican(Double american) {
 }
 ```
 
-### 4. Monitor Match Status Changes
+### 5. Monitor Match Status Changes
 
 ```java
 private static void handleFixture(JsonNode json, ObjectMapper mapper) throws Exception {
@@ -258,7 +310,7 @@ private static void handleFixture(JsonNode json, ObjectMapper mapper) throws Exc
 }
 ```
 
-### 5. Store Data in Database
+### 6. Store Data in Database
 
 ```java
 private static void handleMarkets(JsonNode json, ObjectMapper mapper) throws Exception {

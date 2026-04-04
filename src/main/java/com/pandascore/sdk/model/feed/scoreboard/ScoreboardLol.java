@@ -1,5 +1,6 @@
 package com.pandascore.sdk.model.feed.scoreboard;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import java.time.Instant;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Optional;
  * Scoreboard message for League of Legends matches.
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreboardLol {
     /** Identifier of the scoreboard. */
     private long id;

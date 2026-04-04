@@ -1,5 +1,6 @@
 package com.pandascore.sdk.model.feed.scoreboard;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import java.time.Instant;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.List;
  * Scoreboard message for Counter‑Strike matches.
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreboardCs {
     /** Unique identifier for the scoreboard message. */
     private long id;

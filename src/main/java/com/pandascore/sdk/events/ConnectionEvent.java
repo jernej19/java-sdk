@@ -54,10 +54,22 @@ public final class ConnectionEvent {
     public static final class RecoveryData {
         private final List<MarketsRecoveryMatch> markets;
         private final List<FixtureMatch> matches;
+        private final boolean complete;
 
-        public RecoveryData(List<MarketsRecoveryMatch> markets, List<FixtureMatch> matches) {
+        /**
+         * @param markets  recovered markets (may be empty on failure)
+         * @param matches  recovered matches (may be empty on failure)
+         * @param complete true if both recovery API calls succeeded, false if recovery was partial or failed
+         */
+        public RecoveryData(List<MarketsRecoveryMatch> markets, List<FixtureMatch> matches, boolean complete) {
             this.markets = markets != null ? Collections.unmodifiableList(markets) : Collections.emptyList();
             this.matches = matches != null ? Collections.unmodifiableList(matches) : Collections.emptyList();
+            this.complete = complete;
+        }
+
+        /** Backward-compatible constructor; assumes recovery was complete. */
+        public RecoveryData(List<MarketsRecoveryMatch> markets, List<FixtureMatch> matches) {
+            this(markets, matches, true);
         }
 
         /** Markets recovered since disconnection. */
@@ -68,6 +80,16 @@ public final class ConnectionEvent {
         /** Matches modified during the disconnection window. */
         public List<FixtureMatch> getMatches() {
             return matches;
+        }
+
+        /**
+         * Whether both recovery API calls completed successfully.
+         * When false, the markets and/or matches lists may be incomplete.
+         *
+         * @return true if recovery was fully successful
+         */
+        public boolean isComplete() {
+            return complete;
         }
     }
 

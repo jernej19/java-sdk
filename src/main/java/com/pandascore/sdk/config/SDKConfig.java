@@ -8,7 +8,7 @@ import java.util.Objects;
  * Must call {@link #setOptions(SDKOptions)} before any other SDK APIs.
  */
 public class SDKConfig {
-    private static SDKConfig instance;
+    private static volatile SDKConfig instance;
     private final SDKOptions options;
 
     private SDKConfig(SDKOptions options) {

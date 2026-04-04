@@ -1,7 +1,7 @@
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 
 plugins {
-    java
+    `java-library`
     application
     `maven-publish`
 }
@@ -12,12 +12,12 @@ version = "1.0.0"
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("com.rabbitmq:amqp-client:5.20.0")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.1")
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("org.slf4j:slf4j-api:2.0.13")
+    api("com.rabbitmq:amqp-client:5.20.0")
+    api("com.fasterxml.jackson.core:jackson-databind:2.17.1")
+    api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1")
+    api("com.squareup.okhttp3:okhttp:4.12.0")
+    api("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    api("org.slf4j:slf4j-api:2.0.13")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.6")
     compileOnly("org.projectlombok:lombok:1.18.32")
     annotationProcessor("org.projectlombok:lombok:1.18.32")

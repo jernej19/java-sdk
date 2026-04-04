@@ -1,5 +1,6 @@
 package com.pandascore.sdk.model.feed.scoreboard;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import java.time.Instant;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Optional;
  * Scoreboard message for Dota 2 matches.
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScoreboardDota2 {
     /** Unique identifier for the scoreboard. */
     private long id;
