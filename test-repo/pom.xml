@@ -20,14 +20,14 @@
         <pandascore.sdk.version>1.0.0</pandascore.sdk.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>github-pandascore</id>
+            <url>https://maven.pkg.github.com/PandaScore/pandascore-sdk-java</url>
+        </repository>
+    </repositories>
+
     <dependencies>
-        <!--
-            PandaScore Java SDK dependency.
-            Install the SDK into your local .m2 repository first:
-                cd ../java-sdk && ./gradlew publishToMavenLocal
-            This makes the artifact available at:
-                ~/.m2/repository/co/pandascore/pandascore-sdk-java/1.0.0/
-        -->
         <dependency>
             <groupId>co.pandascore</groupId>
             <artifactId>pandascore-sdk-java</artifactId>
