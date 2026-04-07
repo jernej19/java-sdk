@@ -59,7 +59,7 @@ java-sdk/
 ## Build System
 
 **Tool**: Gradle with Kotlin DSL (`build.gradle.kts`)
-**Java**: Standard Java plugin + Application plugin
+**Java**: `java-library` plugin + Application plugin (uses `api()` for public dependency export)
 
 ### Common Commands
 
