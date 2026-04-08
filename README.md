@@ -58,7 +58,7 @@ dependencies {
 ```xml
 <repositories>
     <repository>
-        <id>github</id>
+        <id>github-pandascore</id>
         <url>https://maven.pkg.github.com/PandaScore/pandascore-sdk-java</url>
     </repository>
 </repositories>
@@ -75,13 +75,15 @@ Add credentials to `~/.m2/settings.xml` (Maven only):
 <settings>
     <servers>
         <server>
-            <id>github</id>
-            <username>${env.GITHUB_ACTOR}</username>
-            <password>${env.GITHUB_TOKEN}</password>
+            <id>github-pandascore</id>
+            <username>YOUR_GITHUB_USERNAME</username>
+            <password>YOUR_GITHUB_PERSONAL_ACCESS_TOKEN</password>
         </server>
     </servers>
 </settings>
 ```
+
+> **Important**: The `<id>` must match in both files (`github-pandascore`). The PAT needs `read:packages` scope. See [QUICKSTART.md](QUICKSTART.md) for detailed setup steps.
 
 ### 2. Configure Credentials
 

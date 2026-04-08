@@ -22,11 +22,8 @@ Production-ready example demonstrating real-time esports odds integration.
 ### Option 1: Run with Gradle
 
 ```bash
-# Make gradlew executable (one time)
-chmod +x gradlew
-
-# Run BasicExample
-./gradlew run --args="com.pandascore.sdk.examples.BasicExample"
+# BasicExample is the default main class
+./gradlew run
 ```
 
 ### Option 2: Compile and Run with Java
@@ -35,8 +32,8 @@ chmod +x gradlew
 # Build the project
 ./gradlew build
 
-# Run example
-java -cp build/libs/sdk.jar com.pandascore.sdk.examples.BasicExample
+# Run example (use the fat jar or set classpath)
+java -cp "build/libs/*:build/classes/java/main" com.pandascore.sdk.examples.BasicExample
 ```
 
 ### Option 3: From IDE
