@@ -46,13 +46,11 @@
     <appender-ref ref="FILE-INFO"/>
   </appender>
 
-  <!-- ===== WARN file (warn, error) ===== -->
+  <!-- ===== WARN file (warn and error) ===== -->
   <appender name="FILE-WARN" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>logs/sdk-warn.log</file>
-    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>WARN</level>
-      <onMatch>ACCEPT</onMatch>
-      <onMismatch>DENY</onMismatch>
     </filter>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <fileNamePattern>logs/sdk-warn.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
@@ -68,12 +66,10 @@
     <appender-ref ref="FILE-WARN"/>
   </appender>
 
-  <!-- Optionally still log to console at INFO+ -->
+  <!-- Log to console at INFO and above -->
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>INFO</level>
-      <onMatch>ACCEPT</onMatch>
-      <onMismatch>DENY</onMismatch>
     </filter>
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} %-5level ${sdkMdcPattern} %logger{36} – %msg%n</pattern>

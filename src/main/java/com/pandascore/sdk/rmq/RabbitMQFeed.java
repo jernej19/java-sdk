@@ -318,7 +318,8 @@ public final class RabbitMQFeed implements AutoCloseable {
         chan.exchangeDeclare(exchange, BuiltinExchangeType.TOPIC, true);
         for (SDKOptions.QueueBinding qb : getEffectiveQueueBindings()) {
             MDC.put("routingKey", qb.getRoutingKey());
-            chan.queueDeclare(qb.getQueueName(), true, false, false, null);
+            Map<String, Object> queueArgs = Map.of("x-queue-type", "quorum");
+            chan.queueDeclare(qb.getQueueName(), true, false, false, queueArgs);
             chan.queueBind(qb.getQueueName(), exchange, qb.getRoutingKey());
             logger.info("Declared queue {} bound to {}", qb.getQueueName(), qb.getRoutingKey());
             MDC.remove("routingKey");

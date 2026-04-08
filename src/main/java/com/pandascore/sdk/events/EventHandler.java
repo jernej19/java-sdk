@@ -183,7 +183,7 @@ public class EventHandler implements AutoCloseable {
                 downAt = Instant.now();
                 missedHeartbeats = 0;
                 MDC.put("operation", "disconnection");
-                logger.info("{}Disconnection detected", label());
+                logger.warn("{}Disconnection detected", label());
                 sink.accept(ConnectionEvent.disconnection());
                 MDC.remove("operation");
             }
@@ -203,7 +203,7 @@ public class EventHandler implements AutoCloseable {
                     disconnected = true;
                     downAt = Instant.now();
                     MDC.put("operation", "disconnection");
-                    logger.info("{}Missed {} heartbeats – marking disconnected", label(), missedHeartbeats);
+                    logger.warn("{}Missed {} heartbeats – marking disconnected", label(), missedHeartbeats);
                     sink.accept(ConnectionEvent.disconnection());
                     MDC.remove("operation");
                 }
