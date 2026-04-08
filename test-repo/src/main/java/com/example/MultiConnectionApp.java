@@ -19,6 +19,10 @@ import java.util.List;
  *   - Connection 2: fixtures + scoreboards feed with recovery disabled
  *
  * Only one connection should enable recovery to avoid redundant API calls.
+ *
+ * <p><strong>Important:</strong> Each connection must receive heartbeat messages
+ * to avoid being marked as disconnected after 30 seconds. Use {@code #} as the
+ * routing key on at least one queue per connection.
  */
 public class MultiConnectionApp {
 
@@ -29,10 +33,10 @@ public class MultiConnectionApp {
         // 1. Configure SDK — replace with your real credentials
         // -------------------------------------------------------
         SDKOptions options = SDKOptions.builder()
-            .apiToken("fredlebookmaker")
-            .companyId(3)
-            .email("fakebookmaker@pandascore.co")
-            .password("fredlebookmaker")
+            .apiToken("YOUR_TOKEN")
+            .companyId(12345)
+            .email("your-email@example.com")
+            .password("your-password")
             .queueBinding(
                 SDKOptions.QueueBinding.builder()
                     .queueName("default-queue")
@@ -44,13 +48,15 @@ public class MultiConnectionApp {
         SDKConfig.setOptions(options);
 
         // -------------------------------------------------------
-        // 2. Connection 1 — markets only, recovery ENABLED
-        //    This connection handles recovery for missed data.
+        // 2. Connection 1 — markets, recovery ENABLED
+        //    Uses "#" to also receive heartbeat messages.
+        //    The SDK filters heartbeats internally — your callback
+        //    only receives business messages.
         // -------------------------------------------------------
         List<SDKOptions.QueueBinding> marketsBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("markets-queue")
-                .routingKey("*.*.*.markets.#")
+                .routingKey("#")
                 .build()
         );
 
@@ -58,26 +64,25 @@ public class MultiConnectionApp {
             logEvent("markets", event);
         });
 
-        // Third argument = true → recovery enabled on this connection
         RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
         marketsFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
-            System.out.printf("[MARKETS] match_id=%s action=%s%n",
-                json.get("match_id"), json.get("action"));
+            String type = json.has("type") ? json.get("type").asText() : "unknown";
+            if ("markets".equals(type)) {
+                System.out.printf("[MARKETS] match_id=%s action=%s%n",
+                    json.get("match_id"), json.get("action"));
+            }
         });
 
         // -------------------------------------------------------
         // 3. Connection 2 — fixtures + scoreboards, recovery DISABLED
-        //    Recovery is handled by connection 1 so we skip it here.
+        //    Also uses "#" to receive heartbeats.
+        //    Filter by type in your callback.
         // -------------------------------------------------------
         List<SDKOptions.QueueBinding> fixtureBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("fixtures-queue")
-                .routingKey("*.*.*.fixture.#")
-                .build(),
-            SDKOptions.QueueBinding.builder()
-                .queueName("scoreboards-queue")
-                .routingKey("*.*.*.scoreboard.#")
+                .routingKey("#")
                 .build()
         );
 
@@ -85,13 +90,14 @@ public class MultiConnectionApp {
             logEvent("fixtures", event);
         });
 
-        // Third argument = false → recovery disabled on this connection
         RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixtureBindings, false);
         fixturesFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
             String type = json.has("type") ? json.get("type").asText() : "unknown";
-            System.out.printf("[%s] match_id=%s%n",
-                type.toUpperCase(), json.get("match_id"));
+            if ("fixture".equals(type) || "scoreboard".equals(type)) {
+                System.out.printf("[%s] match_id=%s%n",
+                    type.toUpperCase(), json.get("match_id"));
+            }
         });
 
         // -------------------------------------------------------
@@ -115,10 +121,12 @@ public class MultiConnectionApp {
         if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
             System.out.printf("[%s] [%s] DISCONNECTED — suspend markets%n", time, feedName);
         } else if (event.getCode() == ConnectionEvent.CODE_RECONNECTION) {
-            System.out.printf("[%s] [%s] RECONNECTED — recovered %d markets, %d matches%n",
+            ConnectionEvent.RecoveryData data = event.getRecoveryData();
+            System.out.printf("[%s] [%s] RECONNECTED — recovered %d markets, %d matches%s%n",
                 time, feedName,
-                event.getRecoveryData().getMarkets().size(),
-                event.getRecoveryData().getMatches().size());
+                data.getMarkets().size(),
+                data.getMatches().size(),
+                data.isComplete() ? "" : " (partial)");
         }
     }
 }

@@ -293,26 +293,36 @@ The SDK supports up to 10 concurrent connections, each with its own queues. This
 
 ```java
 // Connection 1: markets — with recovery enabled
+// Uses "#" to also receive heartbeat messages (required to avoid false disconnections)
 List<SDKOptions.QueueBinding> marketsBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("markets-queue")
-        .routingKey("*.*.*.markets.#")
+        .routingKey("#")
         .build()
 );
 EventHandler marketsHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
-marketsFeed.connect(msg -> { /* process markets */ });
+marketsFeed.connect(msg -> {
+    JsonNode json = (JsonNode) msg;
+    String type = json.has("type") ? json.get("type").asText() : "unknown";
+    if ("markets".equals(type)) { /* process markets */ }
+});
 
 // Connection 2: fixtures — recovery disabled (connection 1 handles it)
+// Also uses "#" so this connection receives heartbeats too
 List<SDKOptions.QueueBinding> fixtureBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("fixtures-queue")
-        .routingKey("*.*.*.fixture.#")
+        .routingKey("#")
         .build()
 );
 EventHandler fixturesHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixtureBindings, false);
-fixturesFeed.connect(msg -> { /* process fixtures */ });
+fixturesFeed.connect(msg -> {
+    JsonNode json = (JsonNode) msg;
+    String type = json.has("type") ? json.get("type").asText() : "unknown";
+    if ("fixture".equals(type) || "scoreboard".equals(type)) { /* process */ }
+});
 ```
 
 **Key points:**

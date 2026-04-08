@@ -245,33 +245,39 @@ Each `RabbitMQFeed` instance represents a separate AMQP connection. Pass per-con
 // 1. Configure global SDK settings (shared by all connections)
 SDKConfig.setOptions(options);
 
-// 2. Connection #1: markets only — with recovery enabled
+// 2. Connection #1: markets — with recovery enabled
+//    Uses "#" to also receive heartbeat messages (required to prevent false disconnections)
 List<SDKOptions.QueueBinding> marketsBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("markets-queue")
-        .routingKey("*.*.*.markets.#")
+        .routingKey("#")
         .build()
 );
 
 EventHandler marketsHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
-marketsFeed.connect(marketsMessage -> { /* process markets */ });
+marketsFeed.connect(msg -> {
+    JsonNode json = (JsonNode) msg;
+    String type = json.has("type") ? json.get("type").asText() : "unknown";
+    if ("markets".equals(type)) { /* process markets */ }
+});
 
 // 3. Connection #2: fixtures + scoreboards — no recovery
+//    Also uses "#" so heartbeats are received on this connection
 List<SDKOptions.QueueBinding> fixturesBindings = List.of(
     SDKOptions.QueueBinding.builder()
         .queueName("fixtures-queue")
-        .routingKey("*.*.*.fixture.#")
-        .build(),
-    SDKOptions.QueueBinding.builder()
-        .queueName("scoreboards-queue")
-        .routingKey("*.*.*.scoreboard.#")
+        .routingKey("#")
         .build()
 );
 
 EventHandler fixturesHandler = new EventHandler(event -> { /* ... */ });
 RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings, false);
-fixturesFeed.connect(fixturesMessage -> { /* process fixtures/scoreboards */ });
+fixturesFeed.connect(msg -> {
+    JsonNode json = (JsonNode) msg;
+    String type = json.has("type") ? json.get("type").asText() : "unknown";
+    if ("fixture".equals(type) || "scoreboard".equals(type)) { /* process */ }
+});
 
 // Monitor active connections
 System.out.println("Active: " + RabbitMQFeed.getActiveConnectionCount());

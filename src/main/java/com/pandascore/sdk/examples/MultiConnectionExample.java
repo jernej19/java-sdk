@@ -17,6 +17,11 @@ import java.util.List;
  * Demonstrates creating multiple AMQP connections, each with its own
  * queue bindings. The SDK supports up to 10 concurrent connections,
  * with up to 10 queues per connection.
+ *
+ * <p><strong>Important:</strong> Each connection must receive heartbeat messages
+ * to avoid being marked as disconnected after 30 seconds. Use {@code #} as the
+ * routing key on at least one queue per connection, or ensure your routing keys
+ * also match heartbeat messages.
  */
 public class MultiConnectionExample {
 
@@ -37,13 +42,17 @@ public class MultiConnectionExample {
 
         SDKConfig.setOptions(options);
 
-        // 2. Create first connection — markets only, WITH recovery enabled
+        // 2. Create first connection — markets, WITH recovery enabled
         //    Only ONE connection should have recoverOnReconnect=true to avoid
         //    redundant recovery API calls across multiple connections.
+        //
+        //    Uses "#" to receive ALL messages (including heartbeats).
+        //    The SDK filters heartbeats internally — your callback only
+        //    receives business messages (markets, fixtures, scoreboards).
         List<SDKOptions.QueueBinding> marketsBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("markets-queue")
-                .routingKey("*.*.*.markets.#")
+                .routingKey("#")
                 .build()
         );
 
@@ -54,19 +63,21 @@ public class MultiConnectionExample {
         RabbitMQFeed marketsFeed = new RabbitMQFeed(marketsHandler, marketsBindings, true);
         marketsFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
-            System.out.println("[markets-feed] Received: " + json.get("type").asText());
+            String type = json.has("type") ? json.get("type").asText() : "unknown";
+            if ("markets".equals(type)) {
+                System.out.println("[markets-feed] Match " + json.get("match_id")
+                    + " — action: " + json.get("action"));
+            }
         });
 
         // 3. Create second connection — fixtures and scoreboards, NO recovery
         //    Recovery is disabled on this connection since connection #1 handles it.
+        //
+        //    Also uses "#" to receive heartbeats. Filter by type in your callback.
         List<SDKOptions.QueueBinding> fixturesBindings = List.of(
             SDKOptions.QueueBinding.builder()
                 .queueName("fixtures-queue")
-                .routingKey("*.*.*.fixture.#")
-                .build(),
-            SDKOptions.QueueBinding.builder()
-                .queueName("scoreboards-queue")
-                .routingKey("*.*.*.scoreboard.#")
+                .routingKey("#")
                 .build()
         );
 
@@ -77,7 +88,10 @@ public class MultiConnectionExample {
         RabbitMQFeed fixturesFeed = new RabbitMQFeed(fixturesHandler, fixturesBindings, false);
         fixturesFeed.connect(message -> {
             JsonNode json = (JsonNode) message;
-            System.out.println("[fixtures-feed] Received: " + json.get("type").asText());
+            String type = json.has("type") ? json.get("type").asText() : "unknown";
+            if ("fixture".equals(type) || "scoreboard".equals(type)) {
+                System.out.println("[fixtures-feed] " + type + " — Match " + json.get("match_id"));
+            }
         });
 
         System.out.println("Active connections: " + RabbitMQFeed.getActiveConnectionCount());
@@ -97,7 +111,10 @@ public class MultiConnectionExample {
         if (event.getCode() == ConnectionEvent.CODE_DISCONNECTION) {
             System.out.println("[" + time + "] [" + feedName + "] DISCONNECTION");
         } else {
-            System.out.println("[" + time + "] [" + feedName + "] RECONNECTION");
+            ConnectionEvent.RecoveryData data = event.getRecoveryData();
+            System.out.println("[" + time + "] [" + feedName + "] RECONNECTION — recovered "
+                + data.getMarkets().size() + " markets, " + data.getMatches().size() + " matches"
+                + (data.isComplete() ? "" : " (partial)"));
         }
     }
 }
