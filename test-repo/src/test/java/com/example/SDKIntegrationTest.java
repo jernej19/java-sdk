@@ -89,10 +89,10 @@ public class SDKIntegrationTest {
     }
 
     @Test
-    void sdkOptionsValidationRejectsEmptyToken() {
+    void sdkOptionsValidationRejectsNullToken() {
         assertThrows(Exception.class, () -> {
             SDKOptions.builder()
-                .apiToken("")
+                .apiToken(null)
                 .companyId(1)
                 .email("test@example.com")
                 .password("test")
@@ -255,7 +255,7 @@ public class SDKIntegrationTest {
     @Test
     void jacksonDeserializesMarketsMessage() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        String json = "{\"type\":\"markets\",\"match_id\":\"999\",\"action\":\"update\",\"markets\":[]}";
+        String json = "{\"type\":\"markets\",\"match_id\":\"999\",\"action\":\"odds_changed\",\"markets\":[]}";
         MarketsMessage msg = mapper.readValue(json, MarketsMessage.class);
 
         assertNotNull(msg);
