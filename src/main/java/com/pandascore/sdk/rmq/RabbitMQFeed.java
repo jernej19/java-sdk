@@ -297,6 +297,11 @@ public final class RabbitMQFeed implements AutoCloseable {
             // Intentional close() should not emit a disconnection event.
             if (!closing) {
                 handler.handleDisconnection();
+                // Schedule automatic reconnection with exponential backoff.
+                Consumer<Object> sink = customerSink;
+                if (sink != null) {
+                    scheduleReconnect(sink);
+                }
             }
             MDC.remove("operation");
         });
