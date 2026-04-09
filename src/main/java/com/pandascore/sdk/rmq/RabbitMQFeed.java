@@ -119,7 +119,7 @@ public final class RabbitMQFeed implements AutoCloseable {
      * @param handler              handles heartbeat and disconnection events
      * @param queueBindings        queue bindings for this connection, or null to use global config
      * @param recoverOnReconnect   whether to trigger recovery APIs on reconnect for this connection,
-     *                             or null to use the global {@link SDKOptions#isRecoverOnReconnect()} setting
+     *                             or null to use the global {@code SDKOptions.isRecoverOnReconnect()} setting
      * @throws IllegalArgumentException if queueBindings is empty or exceeds {@link SDKOptions#MAX_QUEUES_PER_CONNECTION}
      */
     public RabbitMQFeed(EventHandler handler, List<SDKOptions.QueueBinding> queueBindings,
