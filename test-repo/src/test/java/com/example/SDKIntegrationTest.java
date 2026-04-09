@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests do NOT connect to any live server — they only verify
  * that the SDK classes are importable and behave correctly in isolation.
  */
-class SDKIntegrationTest {
+public class SDKIntegrationTest {
 
     @BeforeEach
     void setUp() {
