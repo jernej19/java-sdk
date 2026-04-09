@@ -297,6 +297,16 @@ public final class RabbitMQFeed implements AutoCloseable {
             // Intentional close() should not emit a disconnection event.
             if (!closing) {
                 handler.handleDisconnection();
+                // Schedule reconnection only for broker-initiated shutdowns.
+                // Application-initiated shutdowns (e.g., closeExistingConnection()
+                // during reconnection) must not schedule additional reconnects,
+                // because connect() already handles retries via its own scheduleReconnect().
+                if (!cause.isInitiatedByApplication()) {
+                    Consumer<Object> sink = customerSink;
+                    if (sink != null) {
+                        scheduleReconnect(sink);
+                    }
+                }
             }
             MDC.remove("operation");
         });
