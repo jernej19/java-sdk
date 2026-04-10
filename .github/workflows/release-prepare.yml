@@ -99,5 +99,6 @@ jobs:
           - [ ] Version references are correct in build.gradle.kts, README.md, QUICKSTART.md
           - [ ] Tests pass (see CI below)
           - [ ] Artifacts look good (download from workflow run)
+          - [ ] Tested internally (e.g. test-repo)
 
-          > Merging this PR will automatically publish to GitHub Packages and create a GitHub Release."
+          > After merging, test internally with the built artifacts. When ready for production, trigger the **Publish to GitHub Packages (Manual)** workflow."
