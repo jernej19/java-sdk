@@ -86,7 +86,11 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url  = uri("https://maven.pkg.github.com/PandaScore/pandascore-sdk-java")
+            // Publish to the GitHub repository this build is running in.
+            // In GitHub Actions, GITHUB_REPOSITORY is set automatically (e.g. "jernej19/java-sdk").
+            // For local publishes, set GITHUB_REPOSITORY in your environment or use publishToMavenLocal.
+            val githubRepository = System.getenv("GITHUB_REPOSITORY") ?: "PandaScore/pandascore-sdk-java"
+            url  = uri("https://maven.pkg.github.com/$githubRepository")
             credentials {
                 // Set GITHUB_ACTOR and GITHUB_TOKEN in your environment,
                 // or add them to ~/.gradle/gradle.properties as:
