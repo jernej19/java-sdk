@@ -94,6 +94,11 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
+            // Publish to the GitHub repository this build is running in.
+            // In GitHub Actions, GITHUB_REPOSITORY is set automatically (e.g. "jernej19/java-sdk").
+            // For local publishes, set GITHUB_REPOSITORY in your environment or use publishToMavenLocal.
+            // The slug is lowercased at the top of this file — GitHub Packages Maven URLs are
+            // case-sensitive and reject mixed-case owner/repo paths with HTTP 422.
             url  = uri("https://maven.pkg.github.com/$githubRepoSlug")
             credentials {
                 // Set GITHUB_ACTOR and GITHUB_TOKEN in your environment,
