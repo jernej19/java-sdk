@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   prepare:
@@ -19,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Validate version format
         run: |
@@ -27,15 +29,27 @@ jobs:
             exit 1
           fi
 
+      - name: Compute RC version
+        id: rc
+        run: |
+          echo "version=${{ inputs.version }}-rc.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Read current version
         id: current
         run: |
           CURRENT=$(grep -oP 'version\s*=\s*"\K[^"]+' build.gradle.kts)
           echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
 
-      - name: Create release branch
+      - name: Checkout or create release branch
         run: |
-          git checkout -b "release/v${{ inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin "release/v${{ inputs.version }}"; then
+            git fetch origin "release/v${{ inputs.version }}"
+            git checkout "release/v${{ inputs.version }}"
+          else
+            git checkout -b "release/v${{ inputs.version }}"
+          fi
 
       - name: Bump version in build.gradle.kts
         run: |
@@ -52,11 +66,13 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add build.gradle.kts README.md QUICKSTART.md
-          git commit -m "Bump version to ${{ inputs.version }}"
-          git push origin "release/v${{ inputs.version }}"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add build.gradle.kts README.md QUICKSTART.md
+            git commit -m "Bump version to ${{ inputs.version }}"
+            git push origin "release/v${{ inputs.version }}"
+          else
+            echo "No version changes to commit — branch already at ${{ inputs.version }}"
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -70,6 +86,18 @@ jobs:
       - name: Build and test
         run: ./gradlew build
 
+      - name: Publish RC to GitHub Packages
+        run: |
+          # Temporarily rewrite version in build.gradle.kts to the RC suffix.
+          # This change is NOT committed — the release branch keeps the clean version.
+          sed -i 's/version = "${{ inputs.version }}"/version = "${{ steps.rc.outputs.version }}"/' build.gradle.kts
+          ./gradlew publish
+          # Restore the committed version so later steps see the clean file.
+          git checkout -- build.gradle.kts
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -78,26 +106,45 @@ jobs:
             build/libs/*.jar
           retention-days: 30
 
-      - name: Create pull request
+      - name: Create or update pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr create \
-            --base main \
-            --head "release/v${{ inputs.version }}" \
-            --title "Release v${{ inputs.version }}" \
-            --label "release" \
-            --body "## Release v${{ inputs.version }}
+          BODY=$(cat <<EOF
+          ## Release v${{ inputs.version }} — Ready for Testing
 
           **Version bump:** \`${{ steps.current.outputs.version }}\` → \`${{ inputs.version }}\`
+          **RC published:** \`co.pandascore:pandascore-sdk-java:${{ steps.rc.outputs.version }}\`
 
-          ### Artifacts
-          Built JARs are attached to the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          ### How to test
+          1. Update \`test-repo/pom.xml\`:
+             \`\`\`xml
+             <pandascore.sdk.version>${{ steps.rc.outputs.version }}</pandascore.sdk.version>
+             \`\`\`
+          2. Run \`mvn test\` in \`test-repo\`
+          3. Colleagues can pull \`${{ steps.rc.outputs.version }}\` directly from GitHub Packages
 
           ### Review checklist
           - [ ] CHANGELOG.md updated with new version section
-          - [ ] Version references are correct in build.gradle.kts, README.md, QUICKSTART.md
-          - [ ] Tests pass (see CI below)
-          - [ ] Artifacts look good (download from workflow run)
+          - [ ] Version references are correct in \`build.gradle.kts\`, \`README.md\`, \`QUICKSTART.md\`
+          - [ ] Tests pass (see CI)
+          - [ ] RC tested in \`test-repo\` and by colleagues
 
-          > When ready to publish, trigger the **Publish to GitHub Packages** workflow."
+          ### Next steps
+          - **If broken:** push fixes to \`release/v${{ inputs.version }}\`, re-run **Prepare Release** for a new RC
+          - **If good:** merge this PR, then manually trigger **Publish to GitHub Packages** to release \`${{ inputs.version }}\` to production
+
+          > Production consumers pinned to \`${{ steps.current.outputs.version }}\` are unaffected by the RC.
+          EOF
+          )
+          EXISTING_PR=$(gh pr list --head "release/v${{ inputs.version }}" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            gh pr edit "$EXISTING_PR" --body "$BODY"
+          else
+            gh pr create \
+              --base main \
+              --head "release/v${{ inputs.version }}" \
+              --title "Release v${{ inputs.version }}" \
+              --label "release" \
+              --body "$BODY"
+          fi

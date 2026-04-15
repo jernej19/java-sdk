@@ -112,7 +112,7 @@ test-repo/
 To test a newer SDK version, edit `pom.xml` and change the version property:
 
 ```xml
-<pandascore.sdk.version>1.0.1</pandascore.sdk.version>
+<pandascore.sdk.version>1.0.0</pandascore.sdk.version>
 ```
 
 Then clear the cache and recompile:
