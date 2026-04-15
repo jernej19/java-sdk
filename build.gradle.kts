@@ -9,6 +9,14 @@ plugins {
 group   = "co.pandascore"
 version = "1.0.0"
 
+// Derive the GitHub repository slug ("owner/repo") for publishing.
+// In CI, GITHUB_REPOSITORY is set automatically by GitHub Actions.
+// Locally, fall back to the canonical PandaScore repo. The slug must be
+// lowercased because GitHub Packages Maven URLs are case-sensitive and
+// will reject mixed-case owner/repo paths with HTTP 422.
+val githubRepoSlug: String =
+    (System.getenv("GITHUB_REPOSITORY") ?: "PandaScore/pandascore-sdk-java").lowercase()
+
 repositories { mavenCentral() }
 
 dependencies {
@@ -57,12 +65,12 @@ publishing {
             pom {
                 name        = "PandaScore Java SDK"
                 description = "Real-time esports betting data feed client for PandaScore AMQPS streams"
-                url         = "https://github.com/PandaScore/pandascore-sdk-java"
+                url         = "https://github.com/$githubRepoSlug"
 
                 licenses {
                     license {
                         name = "Proprietary"
-                        url  = "https://github.com/PandaScore/pandascore-sdk-java"
+                        url  = "https://github.com/$githubRepoSlug"
                     }
                 }
 
@@ -75,9 +83,9 @@ publishing {
                 }
 
                 scm {
-                    connection          = "scm:git:git://github.com/PandaScore/pandascore-sdk-java.git"
-                    developerConnection = "scm:git:ssh://github.com/PandaScore/pandascore-sdk-java.git"
-                    url                 = "https://github.com/PandaScore/pandascore-sdk-java"
+                    connection          = "scm:git:git://github.com/$githubRepoSlug.git"
+                    developerConnection = "scm:git:ssh://github.com/$githubRepoSlug.git"
+                    url                 = "https://github.com/$githubRepoSlug"
                 }
             }
         }
@@ -89,8 +97,9 @@ publishing {
             // Publish to the GitHub repository this build is running in.
             // In GitHub Actions, GITHUB_REPOSITORY is set automatically (e.g. "jernej19/java-sdk").
             // For local publishes, set GITHUB_REPOSITORY in your environment or use publishToMavenLocal.
-            val githubRepository = System.getenv("GITHUB_REPOSITORY") ?: "PandaScore/pandascore-sdk-java"
-            url  = uri("https://maven.pkg.github.com/$githubRepository")
+            // The slug is lowercased at the top of this file — GitHub Packages Maven URLs are
+            // case-sensitive and reject mixed-case owner/repo paths with HTTP 422.
+            url  = uri("https://maven.pkg.github.com/$githubRepoSlug")
             credentials {
                 // Set GITHUB_ACTOR and GITHUB_TOKEN in your environment,
                 // or add them to ~/.gradle/gradle.properties as:
